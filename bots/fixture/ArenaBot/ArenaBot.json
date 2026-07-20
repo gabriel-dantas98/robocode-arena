@@ -1,0 +1,10 @@
+{
+  "name": "ArenaBot",
+  "version": "1.0",
+  "authors": ["robocode-arena"],
+  "description": "Fixture bot for lobby e2e",
+  "homepage": "",
+  "countryCodes": ["br"],
+  "platform": "Node.js",
+  "programmingLang": "TypeScript"
+}

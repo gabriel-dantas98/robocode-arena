@@ -1,0 +1,17 @@
+{
+  "name": "robocode-arena",
+  "private": true,
+  "workspaces": ["apps/lobby", "bots"],
+  "scripts": {
+    "dev": "bun run --filter lobby dev",
+    "dev:lobby": "bun run --cwd apps/lobby dev",
+    "dev:engine": "cd apps/engine && ./gradlew run",
+    "build:lobby": "bun run --cwd apps/lobby build",
+    "build:engine": "cd apps/engine && ./gradlew installDist",
+    "scale:generate": "bun scripts/scale/generate-stubs.ts",
+    "scale:matrix": "bun scripts/scale/run-matrix.ts",
+    "tunnel": "bun scripts/tunnel.ts",
+    "e2e": "bun run --cwd e2e test",
+    "e2e:record": "bun run --cwd e2e test:record"
+  }
+}

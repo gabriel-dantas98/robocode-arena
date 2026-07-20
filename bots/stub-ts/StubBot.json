@@ -1,0 +1,10 @@
+{
+  "name": "StubBot",
+  "version": "1.0",
+  "authors": ["robocode-arena"],
+  "description": "TypeScript stub / upload template",
+  "homepage": "",
+  "countryCodes": ["br"],
+  "platform": "Node.js",
+  "programmingLang": "TypeScript"
+}

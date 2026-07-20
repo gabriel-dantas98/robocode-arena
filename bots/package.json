@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@robocode.dev/tank-royale-bot-api": "1.0.2",
+    "tsx": "^4.19.2",
+    "ws": "^8.18.1"
+  }
+}
