@@ -1,3 +1,5 @@
+import { CHASSIS, drawTank, paintChassisPreview, normalizeChassis } from "./tanks.js";
+
 const app = document.getElementById("app");
 
 const state = {
@@ -13,13 +15,17 @@ const state = {
   playerId: localStorage.getItem("arena.playerId"),
   room: null,
   nick: localStorage.getItem("arena.nick") || "",
-  color: localStorage.getItem("arena.color") || "#FF6B35",
+  color: localStorage.getItem("arena.color") || "#E4572E",
+  chassis: normalizeChassis(localStorage.getItem("arena.chassis") || "segfault"),
   battleWs: null,
   lastTick: null,
-  colorsByName: {},
+  playerRoster: [],
+  homeSpin: 0,
+  homeRaf: 0,
 };
 
 function render() {
+  cancelAnimationFrame(state.homeRaf);
   if (state.view === "home") return renderHome();
   if (state.view === "scale") return renderScale();
   return renderRoom();
@@ -28,16 +34,25 @@ function render() {
 function renderHome() {
   app.innerHTML = `
     <div class="layout">
-      <div class="panel">
-        <h1>Robocode Arena</h1>
-        <p class="muted">Lobby local · zip multi-lang (TS/JS/Java/Python/C#) · ready · play no projetor</p>
-        <div class="row" style="margin-top:1rem">
-          <button id="create">Criar lobby</button>
-          <button class="ghost" id="gotoScale">Scale report</button>
+      <div class="home-hero">
+        <div class="panel">
+          <p class="kicker">Tank Royale · workshop lobby</p>
+          <h1 class="brand">Robocode <span>Arena</span></h1>
+          <p class="muted" style="margin-top:0.75rem;max-width:42ch">
+            Lobby local para nick, chassis, zip multi-lang e ready.
+            A partida roda na engine oficial — o canvas é só o projetor.
+          </p>
+          <div class="row" style="margin-top:1.25rem">
+            <button id="create">Criar lobby</button>
+            <button class="ghost" id="gotoScale">Scale report</button>
+          </div>
+          <div class="row" style="margin-top:1rem">
+            <input id="joinCode" type="text" placeholder="Código" maxlength="6" style="text-transform:uppercase;width:8rem" />
+            <button class="ghost" id="joinGo">Entrar</button>
+          </div>
         </div>
-        <div class="row" style="margin-top:1rem">
-          <input id="joinCode" type="text" placeholder="Código da sala" maxlength="6" style="text-transform:uppercase;width:8rem" />
-          <button class="ghost" id="joinGo">Entrar</button>
+        <div class="home-aside">
+          <canvas id="homeTank" width="320" height="220"></canvas>
         </div>
       </div>
     </div>`;
@@ -56,6 +71,37 @@ function renderHome() {
     render();
     bootRoom();
   };
+  spinHomeTank();
+}
+
+function spinHomeTank() {
+  const canvas = document.getElementById("homeTank");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const tick = () => {
+    state.homeSpin += 0.8;
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#0a1016";
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(61,224,255,0.2)";
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 70, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 48, 0, Math.PI * 2);
+    ctx.stroke();
+    const models = CHASSIS.map((c) => c.id);
+    const id = models[Math.floor(state.homeSpin / 90) % models.length];
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate((state.homeSpin * Math.PI) / 180);
+    drawTank(ctx, { chassis: id, color: "#F0A202", scale: 3.2 });
+    ctx.restore();
+    state.homeRaf = requestAnimationFrame(tick);
+  };
+  tick();
 }
 
 async function createRoom() {
@@ -69,19 +115,56 @@ async function createRoom() {
   bootRoom();
 }
 
+function chassisPickerHtml(selected, color, prefix) {
+  return `
+    <div class="chassis-grid" id="${prefix}ChassisGrid">
+      ${CHASSIS.map(
+        (c) => `
+        <button type="button" class="chassis-card ${c.id === selected ? "is-on" : ""}" data-chassis="${c.id}">
+          <canvas width="160" height="100" data-preview="${c.id}"></canvas>
+          <strong>${c.name}</strong>
+          <span>${c.blurb}</span>
+        </button>`,
+      ).join("")}
+    </div>`;
+}
+
+function paintChassisCards(root, color) {
+  root?.querySelectorAll("canvas[data-preview]").forEach((cv) => {
+    paintChassisPreview(cv, cv.dataset.preview, color);
+  });
+}
+
+function wireChassisPicker(root, onPick) {
+  root?.querySelectorAll(".chassis-card").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll(".chassis-card").forEach((b) => b.classList.remove("is-on"));
+      btn.classList.add("is-on");
+      onPick(btn.dataset.chassis);
+    });
+  });
+}
+
 function renderRoom() {
   const room = state.room;
   const isOwner = !!state.ownerToken;
   const me = room?.players?.find((p) => p.id === state.playerId);
   const link = `${location.origin}/r/${state.code}`;
+  const myChassis = me?.chassis || state.chassis;
+  const myColor = me?.color || state.color;
+  const showArena =
+    room?.status === "running" ||
+    room?.status === "ended" ||
+    room?.status === "starting";
 
   app.innerHTML = `
     <div class="layout">
       <div class="panel">
         <div class="row" style="justify-content:space-between">
           <div>
-            <h1>Sala ${state.code || "…"}</h1>
-            <p class="muted">Status: <strong>${room?.status || "loading"}</strong></p>
+            <p class="kicker">Sala</p>
+            <h1 class="brand" style="font-size:1.8rem">${state.code || "…"}</h1>
+            <p class="muted">Status: <strong class="mono">${room?.status || "loading"}</strong></p>
           </div>
           <div class="row">
             <button class="ghost" id="copy">Copiar link</button>
@@ -90,7 +173,7 @@ function renderRoom() {
           </div>
         </div>
         <p class="muted" style="margin:0.5rem 0 0">Link: <code>${link}</code></p>
-        ${room?.error ? `<p class="error">${room.error}</p>` : ""}
+        ${room?.error ? `<p class="error">${escapeHtml(room.error)}</p>` : ""}
       </div>
 
       <div class="panel" id="joinPanel" style="${me ? "display:none" : ""}">
@@ -98,6 +181,10 @@ function renderRoom() {
         <div class="row">
           <input id="nick" type="text" placeholder="Nick" value="${escapeAttr(state.nick)}" />
           <input id="color" type="color" value="${state.color}" />
+        </div>
+        <p class="muted" style="margin:0.85rem 0 0.25rem">Chassis (visual — não muda a física)</p>
+        ${chassisPickerHtml(state.chassis, state.color, "join")}
+        <div class="row" style="margin-top:0.85rem">
           <button id="join">Join</button>
         </div>
       </div>
@@ -106,15 +193,17 @@ function renderRoom() {
         <h2>Seu tank</h2>
         <div class="row">
           <input id="nickEdit" type="text" value="${escapeAttr(me?.nick || state.nick)}" />
-          <input id="colorEdit" type="color" value="${me?.color || state.color}" />
+          <input id="colorEdit" type="color" value="${myColor}" />
           <button class="ghost" id="saveMeta">Salvar</button>
         </div>
-        <div class="row" style="margin-top:0.75rem">
+        <p class="muted" style="margin:0.85rem 0 0.25rem">Chassis</p>
+        ${chassisPickerHtml(myChassis, myColor, "edit")}
+        <div class="row" style="margin-top:0.85rem">
           <input id="zip" type="file" accept=".zip,application/zip" />
           <button class="ghost" id="upload">Upload zip</button>
           <button id="ready" ${me?.botPath ? "" : "disabled"}>${me?.ready ? "Unready" : "Ready"}</button>
         </div>
-        <p class="muted">${me?.botName ? `Bot: ${me.botName}${me.lang ? ` · ${me.lang}` : ""}` : "Nenhum bot enviado — zip: BotName/{BotName.json + .ts|.java|.py|.cs}"}</p>
+        <p class="muted">${me?.botName ? `Bot: ${escapeHtml(me.botName)}${me.lang ? ` · ${escapeHtml(me.lang)}` : ""}` : "Zip: BotName/{BotName.json + .ts|.java|.py|.cs}"}</p>
       </div>
 
       <div class="panel">
@@ -122,9 +211,12 @@ function renderRoom() {
         <div id="players"></div>
       </div>
 
-      <div id="arenaWrap" style="${room?.status === "running" || room?.status === "ended" || room?.status === "starting" ? "" : "display:none"}">
+      <div id="arenaWrap" style="${showArena ? "" : "display:none"}">
         <canvas id="arena" width="1100" height="720"></canvas>
-        <div class="hud" id="hud">aguardando ticks…</div>
+        <div class="hud" id="hud">
+          <span class="pill live">LIVE</span>
+          <span class="pill" id="hudText">aguardando ticks…</span>
+        </div>
         <div class="scoreboard" id="scoreboard"></div>
       </div>
 
@@ -139,13 +231,16 @@ function renderRoom() {
     .map(
       (p) => `
       <div class="player">
-        <span class="swatch" style="background:${p.color}"></span>
-        <span>${escapeHtml(p.nick)} ${p.botName ? `<span class="muted">· ${escapeHtml(p.botName)}${p.lang ? ` (${p.lang})` : ""}</span>` : ""}</span>
+        <canvas class="player-mini" width="72" height="72" data-pchassis="${escapeAttr(p.chassis || "segfault")}" data-pcolor="${escapeAttr(p.color)}"></canvas>
+        <span>${escapeHtml(p.nick)} ${p.botName ? `<span class="muted">· ${escapeHtml(p.botName)}${p.lang ? ` (${escapeHtml(p.lang)})` : ""} · ${escapeHtml(p.chassis || "segfault")}</span>` : `<span class="muted">· ${escapeHtml(p.chassis || "segfault")}</span>`}</span>
         <span class="badge ${p.ready ? "ready" : "wait"}">${p.ready ? "ready" : "waiting"}</span>
         <span class="muted">${p.id === state.playerId ? "você" : ""}</span>
       </div>`,
     )
     .join("");
+  playersEl.querySelectorAll("canvas.player-mini").forEach((cv) => {
+    paintChassisPreview(cv, cv.dataset.pchassis, cv.dataset.pcolor);
+  });
 
   if (room?.results?.length) {
     document.getElementById("results").innerHTML = room.results
@@ -156,6 +251,27 @@ function renderRoom() {
       .join("");
   }
 
+  paintChassisCards(document.getElementById("joinChassisGrid"), state.color);
+  paintChassisCards(document.getElementById("editChassisGrid"), myColor);
+  wireChassisPicker(document.getElementById("joinChassisGrid"), (id) => {
+    state.chassis = id;
+    localStorage.setItem("arena.chassis", id);
+    paintChassisCards(document.getElementById("joinChassisGrid"), state.color);
+  });
+  wireChassisPicker(document.getElementById("editChassisGrid"), (id) => {
+    state.chassis = id;
+    localStorage.setItem("arena.chassis", id);
+    saveMeta();
+  });
+
+  document.getElementById("color")?.addEventListener("input", (e) => {
+    state.color = e.target.value;
+    paintChassisCards(document.getElementById("joinChassisGrid"), state.color);
+  });
+  document.getElementById("colorEdit")?.addEventListener("input", (e) => {
+    paintChassisCards(document.getElementById("editChassisGrid"), e.target.value);
+  });
+
   document.getElementById("copy")?.addEventListener("click", () => navigator.clipboard.writeText(link));
   document.getElementById("join")?.addEventListener("click", joinRoom);
   document.getElementById("saveMeta")?.addEventListener("click", saveMeta);
@@ -164,10 +280,10 @@ function renderRoom() {
   document.getElementById("play")?.addEventListener("click", play);
   document.getElementById("reset")?.addEventListener("click", resetRoom);
 
-  // color map for arena observer
   state.playerRoster = (room?.players || []).map((p) => ({
     nick: p.nick,
     color: p.color,
+    chassis: p.chassis || "segfault",
     botName: p.botName,
   }));
   if (room?.battleId && room.status === "running") connectBattle(room.battleId);
@@ -180,7 +296,6 @@ async function bootRoom() {
     state.room = JSON.parse(ev.data);
     renderRoom();
   });
-  // initial fetch in case SSE slow
   const res = await fetch(`/api/rooms/${state.code}`);
   if (res.ok) {
     state.room = (await res.json()).room;
@@ -191,14 +306,19 @@ async function bootRoom() {
 async function joinRoom() {
   const nick = document.getElementById("nick").value.trim();
   const color = document.getElementById("color").value;
+  const chassis =
+    document.querySelector("#joinChassisGrid .chassis-card.is-on")?.dataset.chassis ||
+    state.chassis;
   state.nick = nick;
   state.color = color;
+  state.chassis = chassis;
   localStorage.setItem("arena.nick", nick);
   localStorage.setItem("arena.color", color);
+  localStorage.setItem("arena.chassis", chassis);
   const res = await fetch(`/api/rooms/${state.code}/join`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ nick, color }),
+    body: JSON.stringify({ nick, color, chassis }),
   }).then((r) => r.json());
   if (res.error) return alert(res.error);
   state.playerId = res.player.id;
@@ -208,12 +328,21 @@ async function joinRoom() {
 }
 
 async function saveMeta() {
-  const nick = document.getElementById("nickEdit").value.trim();
-  const color = document.getElementById("colorEdit").value;
+  const nick = document.getElementById("nickEdit")?.value.trim() || state.nick;
+  const color = document.getElementById("colorEdit")?.value || state.color;
+  const chassis =
+    document.querySelector("#editChassisGrid .chassis-card.is-on")?.dataset.chassis ||
+    state.chassis;
+  state.nick = nick;
+  state.color = color;
+  state.chassis = chassis;
+  localStorage.setItem("arena.nick", nick);
+  localStorage.setItem("arena.color", color);
+  localStorage.setItem("arena.chassis", chassis);
   await fetch(`/api/rooms/${state.code}/players/${state.playerId}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ nick, color }),
+    body: JSON.stringify({ nick, color, chassis }),
   });
 }
 
@@ -268,8 +397,8 @@ async function connectBattle(battleId) {
     if (msg.type === "tick") {
       state.lastTick = msg;
       drawArena(msg);
-      const hud = document.getElementById("hud");
-      if (hud) hud.textContent = `round ${msg.round} · turn ${msg.turn} · bots ${msg.bots?.length || 0}`;
+      const hud = document.getElementById("hudText");
+      if (hud) hud.textContent = `R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots`;
     }
   };
 }
@@ -281,10 +410,9 @@ function drawArena(msg) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // atmospheric ground
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, "#0b1218");
-  grad.addColorStop(1, "#121a22");
+  const grad = ctx.createRadialGradient(w * 0.5, h * 0.45, 40, w * 0.5, h * 0.5, w * 0.7);
+  grad.addColorStop(0, "#121a24");
+  grad.addColorStop(1, "#070b10");
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
 
@@ -297,67 +425,71 @@ function drawArena(msg) {
   }
   maxX = Math.max(maxX + 40, 800);
   maxY = Math.max(maxY + 40, 600);
-  const pad = 24;
+  const pad = 28;
   const s = Math.min((w - pad * 2) / maxX, (h - pad * 2) / maxY);
+  const aw = maxX * s;
+  const ah = maxY * s;
 
   // arena floor
-  ctx.fillStyle = "#151e28";
-  ctx.fillRect(pad, pad, maxX * s, maxY * s);
-  ctx.strokeStyle = "#2a3a4a";
+  ctx.fillStyle = "#0c1218";
+  ctx.fillRect(pad, pad, aw, ah);
+  ctx.strokeStyle = "rgba(61,224,255,0.35)";
   ctx.lineWidth = 2;
-  ctx.strokeRect(pad, pad, maxX * s, maxY * s);
+  ctx.strokeRect(pad, pad, aw, ah);
 
   // grid
-  ctx.strokeStyle = "rgba(80,110,140,0.12)";
+  ctx.strokeStyle = "rgba(80,110,140,0.14)";
   ctx.lineWidth = 1;
   for (let gx = 0; gx <= maxX; gx += 100) {
     ctx.beginPath();
     ctx.moveTo(pad + gx * s, pad);
-    ctx.lineTo(pad + gx * s, pad + maxY * s);
+    ctx.lineTo(pad + gx * s, pad + ah);
     ctx.stroke();
   }
   for (let gy = 0; gy <= maxY; gy += 100) {
     ctx.beginPath();
     ctx.moveTo(pad, pad + gy * s);
-    ctx.lineTo(pad + maxX * s, pad + gy * s);
+    ctx.lineTo(pad + aw, pad + gy * s);
     ctx.stroke();
   }
 
   const roster = state.playerRoster || [];
   const sorted = [...bots].sort((a, b) => (a.id || 0) - (b.id || 0));
+  const tankScale = Math.max(0.9, Math.min(1.6, s * 1.1));
 
   for (const b of sorted) {
     const idx = sorted.indexOf(b);
     const meta = roster[idx] || {};
     const color = meta.color || pickColor(b);
+    const chassis = meta.chassis || "segfault";
     const label = meta.nick || meta.botName || `#${b.id}`;
     const x = pad + (b.x || 0) * s;
     const y = pad + (maxY - (b.y || 0)) * s;
 
-    // body
+    // scan arc hint
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(((-(b.direction || 0)) * Math.PI) / 180);
-    ctx.fillStyle = color;
-    ctx.fillRect(-10, -10, 20, 20);
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.fillRect(0, -3, 14, 6);
+    ctx.strokeStyle = "rgba(61,224,255,0.18)";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, 28 * tankScale, -0.55, 0.55);
+    ctx.closePath();
+    ctx.stroke();
+    drawTank(ctx, { chassis, color, scale: 1.15 * tankScale, energy: b.energy });
     ctx.restore();
 
-    // energy bar
     const energy = Math.max(0, Math.min(100, b.energy ?? 100));
-    ctx.fillStyle = "rgba(0,0,0,0.5)";
-    ctx.fillRect(x - 14, y - 22, 28, 4);
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(x - 16, y - 28, 32, 4);
     ctx.fillStyle = energy > 30 ? "#3dd68c" : "#ff5d5d";
-    ctx.fillRect(x - 14, y - 22, 28 * (energy / 100), 4);
+    ctx.fillRect(x - 16, y - 28, 32 * (energy / 100), 4);
 
-    // nick
-    ctx.fillStyle = "#e8eef4";
-    ctx.font = "600 12px IBM Plex Sans, sans-serif";
-    ctx.fillText(String(label), x + 12, y - 8);
+    ctx.fillStyle = "#e7eef6";
+    ctx.font = "600 12px Oxanium, sans-serif";
+    ctx.fillText(String(label), x + 14, y - 10);
   }
 
-  // live scoreboard
   const board = document.getElementById("scoreboard");
   if (board) {
     board.innerHTML = sorted
@@ -365,14 +497,24 @@ function drawArena(msg) {
         const meta = roster[idx] || {};
         const color = meta.color || pickColor(b);
         const label = meta.nick || meta.botName || `#${b.id}`;
-        return `<div class="sb-row"><span class="swatch" style="background:${color}"></span><span>${escapeHtml(label)}</span><span>${Math.round(b.energy ?? 0)} e</span></div>`;
+        const id = `sb-${b.id}`;
+        return `<div class="sb-row"><canvas class="sb-tank" id="${id}" width="52" height="40"></canvas><span>${escapeHtml(label)}</span><span>${Math.round(b.energy ?? 0)}</span></div>`;
       })
       .join("");
+    sorted.forEach((b, idx) => {
+      const meta = roster[idx] || {};
+      const cv = document.getElementById(`sb-${b.id}`);
+      if (cv)
+        paintChassisPreview(
+          cv,
+          meta.chassis || "segfault",
+          meta.color || pickColor(b),
+        );
+    });
   }
 }
 
 function pickColor(b) {
-  // cycle palette by id
   const palette = ["#E4572E", "#17BEBB", "#FFC914", "#2E86AB", "#A23B72", "#76B041", "#F18F01"];
   return palette[(b.id || 0) % palette.length];
 }
@@ -382,10 +524,13 @@ async function renderScale() {
     <div class="layout">
       <div class="panel">
         <div class="row" style="justify-content:space-between">
-          <h1>Scale report</h1>
+          <div>
+            <p class="kicker">Ops</p>
+            <h1>Scale report</h1>
+          </div>
           <button class="ghost" id="home">Home</button>
         </div>
-        <p class="muted">Matriz 3 → 500 · resultados em data/scale-results</p>
+        <p class="muted">Matriz 3 → 500 · data/scale-results</p>
         <table class="scale-table">
           <thead><tr><th>N</th><th>Status</th><th>Boot ms</th><th>Wall ms</th><th>Error</th></tr></thead>
           <tbody id="rows"><tr><td colspan="5">loading…</td></tr></tbody>
@@ -400,7 +545,7 @@ async function renderScale() {
   const data = await fetch("/api/scale/results").then((r) => r.json());
   const rows = document.getElementById("rows");
   if (!data.results?.length) {
-    rows.innerHTML = `<tr><td colspan="5">Sem resultados ainda. Rode <code>bun run scale:matrix</code></td></tr>`;
+    rows.innerHTML = `<tr><td colspan="5">Sem resultados. Rode <code>bun scripts/scale/run-matrix.ts</code></td></tr>`;
     return;
   }
   rows.innerHTML = data.results
@@ -426,7 +571,6 @@ function escapeAttr(s) {
   return escapeHtml(s).replaceAll('"', "&quot;");
 }
 
-// Fix static serving in dev: map /client/*
 window.addEventListener("popstate", () => {
   state.view = location.pathname.startsWith("/r/")
     ? "room"

@@ -15,6 +15,8 @@ mkdirSync(UPLOADS, { recursive: true });
 
 const PORT = Number(process.env.LOBBY_PORT || 7610);
 const ENGINE_URL = process.env.ENGINE_URL || "http://127.0.0.1:7601";
+/** Soft cap for workshop rooms (override with LOBBY_MAX_PLAYERS). */
+const MAX_PLAYERS = Number(process.env.LOBBY_MAX_PLAYERS || 40);
 let PUBLIC_URL = process.env.PUBLIC_URL || null;
 
 const rooms = new RoomStore(() => PUBLIC_URL);
@@ -65,8 +67,12 @@ app.get("/api/rooms/:code/events", (c) => {
 
 app.post("/api/rooms/:code/join", async (c) => {
   try {
-    const body = await c.req.json<{ nick: string; color: string }>();
-    const result = rooms.join(c.req.param("code"), body);
+    const body = await c.req.json<{
+      nick: string;
+      color: string;
+      chassis?: string;
+    }>();
+    const result = rooms.join(c.req.param("code"), body, MAX_PLAYERS);
     return c.json(result);
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
@@ -76,7 +82,11 @@ app.post("/api/rooms/:code/join", async (c) => {
 app.patch("/api/rooms/:code/players/:playerId", async (c) => {
   try {
     const body = await c.req.json();
-    const room = rooms.updatePlayer(c.req.param("code"), c.req.param("playerId"), body);
+    const room = rooms.updatePlayer(
+      c.req.param("code"),
+      c.req.param("playerId"),
+      body,
+    );
     return c.json({ room });
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 400);
@@ -89,13 +99,18 @@ app.post("/api/rooms/:code/players/:playerId/upload", async (c) => {
     const playerId = c.req.param("playerId");
     const room = rooms.get(code);
     if (!room) return c.json({ error: "not found" }, 404);
-    if (!room.players.has(playerId)) return c.json({ error: "player not found" }, 404);
+    if (!room.players.has(playerId))
+      return c.json({ error: "player not found" }, 404);
 
     const form = await c.req.formData();
     const file = form.get("file");
     if (!(file instanceof File)) return c.json({ error: "file required" }, 400);
     const buf = Buffer.from(await file.arrayBuffer());
-    const validated = await extractAndValidateZipAsync(buf, UPLOADS, `${code}-${playerId}`);
+    const validated = await extractAndValidateZipAsync(
+      buf,
+      UPLOADS,
+      `${code}-${playerId}`,
+    );
     const pub = rooms.updatePlayer(code, playerId, {
       botPath: validated.botDir,
       botName: validated.botName,
@@ -146,7 +161,9 @@ app.post("/api/rooms/:code/play", async (c) => {
       for (;;) {
         await Bun.sleep(1000);
         try {
-          const snap = await fetch(`${ENGINE_URL}/battles/${id}`).then((r) => r.json()) as {
+          const snap = (await fetch(`${ENGINE_URL}/battles/${id}`).then((r) =>
+            r.json(),
+          )) as {
             status: string;
             results?: unknown[];
             error?: string;
@@ -156,7 +173,9 @@ app.post("/api/rooms/:code/play", async (c) => {
             break;
           }
           if (snap.status === "FAILED" || snap.status === "STOPPED") {
-            rooms.setStatus(code, "failed", { error: snap.error || snap.status });
+            rooms.setStatus(code, "failed", {
+              error: snap.error || snap.status,
+            });
             break;
           }
         } catch (e) {
@@ -199,12 +218,28 @@ app.get("/api/scale/results", async (c) => {
 
 const CLIENT = join(import.meta.dir, "../client");
 
+const MIME: Record<string, string> = {
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".webp": "image/webp",
+  ".json": "application/json",
+};
+
 app.get("/client/*", async (c) => {
   const rel = c.req.path.replace(/^\/client\//, "");
   if (rel.includes("..")) return c.text("bad path", 400);
-  const file = Bun.file(join(CLIENT, rel));
+  const filePath = join(CLIENT, rel);
+  const file = Bun.file(filePath);
   if (!(await file.exists())) return c.text("not found", 404);
-  return new Response(file);
+  const ext = rel.includes(".")
+    ? `.${rel.split(".").pop()!.toLowerCase()}`
+    : "";
+  const type = MIME[ext] || file.type || "application/octet-stream";
+  return new Response(file, { headers: { "Content-Type": type } });
 });
 
 app.get("/r/:code", async (c) => {

@@ -11,6 +11,7 @@ export default defineConfig({
     video: "on",
     screenshot: "on",
   },
-  outputDir: "./artifacts",
+  outputDir: "./artifacts/test-results",
   reporter: [["list"], ["html", { open: "never", outputFolder: "artifacts/report" }]],
 });
+

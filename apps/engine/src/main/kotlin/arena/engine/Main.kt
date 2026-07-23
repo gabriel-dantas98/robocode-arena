@@ -119,6 +119,10 @@ class BattleService(
 
     fun start(req: StartBattleRequest): BattleSession {
         require(req.botPaths.size >= 2) { "Need at least 2 bots" }
+        val maxBots = System.getenv("ENGINE_MAX_BOTS")?.toIntOrNull() ?: 220
+        require(req.botPaths.size <= maxBots) {
+            "Too many bots (${req.botPaths.size} > $maxBots). Set ENGINE_MAX_BOTS to override (host RAM cliff ~200 on 16GB)."
+        }
         val id = UUID.randomUUID().toString().take(8)
         val session = BattleSession(id, mapper)
         sessions[id] = session

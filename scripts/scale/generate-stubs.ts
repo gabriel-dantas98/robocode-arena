@@ -7,7 +7,9 @@ import { mkdirSync, writeFileSync, cpSync, existsSync, chmodSync } from "fs";
 import { join, resolve } from "path";
 
 const count = Number(process.argv[2] || "3");
-const outDir = resolve(process.argv[3] || join(import.meta.dir, "../../data/generated/stubs"));
+const outDir = resolve(
+  process.argv[3] || join(import.meta.dir, "../../data/generated/stubs"),
+);
 const templateDir = resolve(import.meta.dir, "../../bots/stub-java");
 const libDir = resolve(import.meta.dir, "../../bots/lib");
 
@@ -78,11 +80,12 @@ public class ${name} extends Bot {
   );
 
   // layout: data/generated/stubs/Stub0001 -> ../lib = data/generated/stubs/lib
+  // Cap each stub JVM hard — 500 uncapped processes OOM the host.
   const jar = "../lib/robocode-tankroyale-bot-api-1.0.2.jar";
   const sh = `#!/bin/sh
 set -e
 cd -- "\$(dirname -- "\$0")"
-exec java -cp "${jar}:." ${name}.java
+exec java -Xms8m -Xmx32m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -cp "${jar}:." ${name}.java
 `;
 
   writeFileSync(join(dir, `${name}.java`), java);
@@ -92,5 +95,14 @@ exec java -cp "${jar}:." ${name}.java
   paths.push(dir);
 }
 
-writeFileSync(join(outDir, "manifest.json"), JSON.stringify({ count, paths, outDir }, null, 2));
-console.log(JSON.stringify({ ok: true, count, outDir, sample: paths.slice(0, 3) }, null, 2));
+writeFileSync(
+  join(outDir, "manifest.json"),
+  JSON.stringify({ count, paths, outDir }, null, 2),
+);
+console.log(
+  JSON.stringify(
+    { ok: true, count, outDir, sample: paths.slice(0, 3) },
+    null,
+    2,
+  ),
+);

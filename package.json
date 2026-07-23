@@ -11,6 +11,8 @@
     "scale:generate": "bun scripts/scale/generate-stubs.ts",
     "scale:matrix": "bun scripts/scale/run-matrix.ts",
     "tunnel": "bun scripts/tunnel.ts",
+    "record": "bun scripts/record-match.ts",
+    "stop": "bash scripts/stop.sh",
     "e2e": "bun run --cwd e2e test",
     "e2e:record": "bun run --cwd e2e test:record"
   }

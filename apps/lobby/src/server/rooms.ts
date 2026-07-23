@@ -1,5 +1,6 @@
 import { customAlphabet } from "nanoid";
 import type { Player, PublicRoom, Room, RoomStatus } from "../shared/types";
+import { normalizeChassis } from "../shared/tanks";
 
 const codeGen = customAlphabet("ABCDEFGHJKLMNPQRSTUVWXYZ23456789", 6);
 const idGen = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 10);
@@ -38,16 +39,25 @@ export class RoomStore {
 
   join(
     code: string,
-    input: { nick: string; color: string },
+    input: { nick: string; color: string; chassis?: string },
+    maxPlayers = 40,
   ): { player: Player; room: PublicRoom } {
     const room = this.require(code);
     if (room.status !== "lobby") throw new Error("Room is not accepting joins");
+    if (room.players.size >= maxPlayers) {
+      throw new Error(
+        `Room full (max ${maxPlayers}). Override LOBBY_MAX_PLAYERS if needed.`,
+      );
+    }
     const nick = input.nick.trim().slice(0, 24) || "Anon";
-    const color = /^#[0-9a-fA-F]{6}$/.test(input.color) ? input.color : randomColor();
+    const color = /^#[0-9a-fA-F]{6}$/.test(input.color)
+      ? input.color
+      : randomColor();
     const player: Player = {
       id: idGen(),
       nick,
       color,
+      chassis: normalizeChassis(input.chassis),
       ready: false,
       botPath: null,
       botName: null,
@@ -62,7 +72,12 @@ export class RoomStore {
   updatePlayer(
     code: string,
     playerId: string,
-    patch: Partial<Pick<Player, "nick" | "color" | "ready" | "botPath" | "botName" | "lang">>,
+    patch: Partial<
+      Pick<
+        Player,
+        "nick" | "color" | "chassis" | "ready" | "botPath" | "botName" | "lang"
+      >
+    >,
   ): PublicRoom {
     const room = this.require(code);
     const player = room.players.get(playerId);
@@ -70,8 +85,12 @@ export class RoomStore {
     if (room.status !== "lobby" && patch.ready === undefined) {
       throw new Error("Cannot edit during battle");
     }
-    if (patch.nick !== undefined) player.nick = patch.nick.trim().slice(0, 24) || player.nick;
-    if (patch.color !== undefined && /^#[0-9a-fA-F]{6}$/.test(patch.color)) player.color = patch.color;
+    if (patch.nick !== undefined)
+      player.nick = patch.nick.trim().slice(0, 24) || player.nick;
+    if (patch.color !== undefined && /^#[0-9a-fA-F]{6}$/.test(patch.color))
+      player.color = patch.color;
+    if (patch.chassis !== undefined)
+      player.chassis = normalizeChassis(patch.chassis);
     if (patch.botPath !== undefined) {
       player.botPath = patch.botPath;
       player.ready = false;
@@ -79,7 +98,8 @@ export class RoomStore {
     if (patch.botName !== undefined) player.botName = patch.botName;
     if (patch.lang !== undefined) player.lang = patch.lang;
     if (patch.ready !== undefined) {
-      if (patch.ready && !player.botPath) throw new Error("Upload a bot before ready");
+      if (patch.ready && !player.botPath)
+        throw new Error("Upload a bot before ready");
       player.ready = patch.ready;
     }
     player.updatedAt = Date.now();
@@ -87,7 +107,11 @@ export class RoomStore {
     return this.toPublic(room);
   }
 
-  setStatus(code: string, status: RoomStatus, extra?: Partial<Pick<Room, "battleId" | "results" | "error">>) {
+  setStatus(
+    code: string,
+    status: RoomStatus,
+    extra?: Partial<Pick<Room, "battleId" | "results" | "error">>,
+  ) {
     const room = this.require(code);
     room.status = status;
     if (extra?.battleId !== undefined) room.battleId = extra.battleId;
@@ -146,6 +170,15 @@ export class RoomStore {
 }
 
 function randomColor() {
-  const palette = ["#E4572E", "#17BEBB", "#FFC914", "#2E86AB", "#A23B72", "#76B041", "#F18F01", "#C73E1D"];
+  const palette = [
+    "#E4572E",
+    "#17BEBB",
+    "#FFC914",
+    "#2E86AB",
+    "#A23B72",
+    "#76B041",
+    "#F18F01",
+    "#C73E1D",
+  ];
   return palette[Math.floor(Math.random() * palette.length)];
 }

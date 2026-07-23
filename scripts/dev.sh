@@ -12,8 +12,10 @@ if [[ ! -x build/install/robocode-arena-engine/bin/robocode-arena-engine ]]; the
   gradle installDist --no-daemon
 fi
 
-echo "Starting engine on :$ENGINE_PORT"
-ENGINE_PORT="$ENGINE_PORT" JAVA_OPTS="-Xmx2g" \
+# Workshop default: keep engine lean. Scale runs can override ENGINE_XMX=2g.
+ENGINE_XMX="${ENGINE_XMX:-768m}"
+echo "Starting engine on :$ENGINE_PORT (Xmx=$ENGINE_XMX)"
+ENGINE_PORT="$ENGINE_PORT" JAVA_OPTS="-Xmx${ENGINE_XMX} -XX:+UseG1GC" \
   "$ROOT/apps/engine/build/install/robocode-arena-engine/bin/robocode-arena-engine" \
   > /tmp/robocode-arena-engine.log 2>&1 &
 ENGINE_PID=$!

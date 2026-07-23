@@ -5,6 +5,12 @@ data/uploads/
 data/generated/
 data/scale-results/*.json
 e2e/artifacts/
+e2e/node_modules/
+recordings/
 *.log
 .DS_Store
 apps/engine/build/
+apps/engine/.gradle/
+.env
+.env.*
+!.env.example

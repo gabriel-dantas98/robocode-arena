@@ -2,6 +2,8 @@ export type Player = {
   id: string;
   nick: string;
   color: string;
+  /** Visual chassis only — does not affect Robocode physics. */
+  chassis: string;
   ready: boolean;
   botPath: string | null;
   botName: string | null;

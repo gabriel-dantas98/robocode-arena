@@ -18,7 +18,10 @@ function flag(name: string, fallback: string) {
   return i >= 0 ? args[i + 1] : fallback;
 }
 
-const engineUrl = flag("--engine", process.env.ENGINE_URL || "http://127.0.0.1:7601");
+const engineUrl = flag(
+  "--engine",
+  process.env.ENGINE_URL || "http://127.0.0.1:7601",
+);
 const sizes = flag("--sizes", "3,10,40,100,200,500")
   .split(",")
   .map((s) => Number(s.trim()))
@@ -83,7 +86,9 @@ async function runOne(n: number): Promise<RunResult> {
   console.log(`\n=== SCALE n=${n} rounds=${rounds} ===`);
   await $`bun ${join(root, "scripts/scale/generate-stubs.ts")} ${n} ${genDir}`.quiet();
 
-  const manifest = JSON.parse(readFileSync(join(genDir, "manifest.json"), "utf8")) as {
+  const manifest = JSON.parse(
+    readFileSync(join(genDir, "manifest.json"), "utf8"),
+  ) as {
     paths: string[];
   };
 
@@ -113,7 +118,9 @@ async function runOne(n: number): Promise<RunResult> {
 
     const deadline = Date.now() + timeoutFor(n);
     while (Date.now() < deadline) {
-      const snap = await fetch(`${engineUrl}/battles/${battleId}`).then((r) => r.json()) as {
+      const snap = (await fetch(`${engineUrl}/battles/${battleId}`).then((r) =>
+        r.json(),
+      )) as {
         status: string;
         error?: string;
         metrics?: { bootMs?: number; wallMs?: number };
@@ -137,7 +144,8 @@ async function runOne(n: number): Promise<RunResult> {
       }
       if (snap.status === "FAILED" || snap.status === "STOPPED") {
         const err = (snap.error || snap.status).toLowerCase();
-        const status = err.includes("memory") || err.includes("oom") ? "oom" : "fail";
+        const status =
+          err.includes("memory") || err.includes("oom") ? "oom" : "fail";
         return {
           n,
           rounds,
@@ -185,21 +193,21 @@ function writeMarkdown(results: RunResult[]) {
     `Generated: ${new Date().toISOString()}`,
     `Engine: ${engineUrl}`,
     "",
-    cliff
-      ? `**Largest PASS:** ${cliff.n} bots`
-      : "**Largest PASS:** none",
+    cliff ? `**Largest PASS:** ${cliff.n} bots` : "**Largest PASS:** none",
     "",
     "| N | Rounds | Status | Boot ms | Wall ms | Criteria | Error |",
     "|---|--------|--------|---------|---------|----------|-------|",
-    ...results.map(
-      (r) =>
-        `| ${r.n} | ${r.rounds} | ${r.status} | ${r.bootMs ?? "—"} | ${r.wallMs ?? "—"} | ${r.criteria} | ${r.error ?? ""} |`,
-    ),
+    ...results.map((r) => {
+      const err = (r.error || "").replace(/\|/g, "/").slice(0, 120);
+      return `| ${r.n} | ${r.rounds} | ${r.status} | ${r.bootMs ?? "—"} | ${r.wallMs ?? "—"} | ${r.criteria} | ${err} |`;
+    }),
     "",
     "## Notes",
     "",
-    "- Stubs are JVM (lighter than Node) generated under `data/generated/stubs`.",
-    "- 100+ may fail due to process limits / RAM — that's the point of the matrix.",
+    "- Stubs are JVM (lighter than Node) under `data/generated/stubs`, launched with `-Xmx32m -XX:+UseSerialGC`.",
+    "- Each bot = 1 OS process. On a 16GB Mac, cliff is ~200 pass / 500 fail (~80 connected before timeout).",
+    "- Workshop safe default: ≤40 players. Engine refuses >`ENGINE_MAX_BOTS` (default 220).",
+    "- Do not re-run 500 on this host without closing other apps.",
     "",
   ];
   writeFileSync(docsPath, lines.join("\n"));
@@ -226,7 +234,10 @@ async function main() {
     console.log(r);
   }
   results.sort((a, b) => a.n - b.n);
-  writeFileSync(join(resultsDir, "matrix.json"), JSON.stringify(results, null, 2));
+  writeFileSync(
+    join(resultsDir, "matrix.json"),
+    JSON.stringify(results, null, 2),
+  );
   writeMarkdown(results);
   console.log(`\nWrote ${docsPath}`);
 }

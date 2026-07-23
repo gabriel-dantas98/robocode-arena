@@ -5,8 +5,17 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const zips = path.resolve(__dirname, "../../bots/fixture/zips");
 
-test("lobby happy path — 3 players ready → play → results", async ({ browser }) => {
-  const owner = await browser.newPage();
+test("lobby happy path — 3 players ready → play → results", async ({
+  browser,
+}, testInfo) => {
+  // Explicit recordVideo — browser.newContext() does not inherit config `use.video`.
+  const ctx = await browser.newContext({
+    recordVideo: {
+      dir: testInfo.outputDir,
+      size: { width: 1280, height: 720 },
+    },
+  });
+  const owner = await ctx.newPage();
   await owner.goto("/");
   await owner.getByRole("button", { name: "Criar lobby" }).click();
   await expect(owner.getByText(/Sala /)).toBeVisible();
@@ -23,7 +32,7 @@ test("lobby happy path — 3 players ready → play → results", async ({ brows
 
   const pages = [];
   for (const p of players) {
-    const page = await browser.newPage();
+    const page = await ctx.newPage();
     await page.goto(`/r/${code}`);
     await page.getByPlaceholder("Nick").fill(p.nick);
     await page.locator("#color").fill(p.color);
@@ -37,26 +46,28 @@ test("lobby happy path — 3 players ready → play → results", async ({ brows
     pages.push(page);
   }
 
-  await expect(owner.getByRole("button", { name: "Play" })).toBeEnabled({ timeout: 30_000 });
+  for (const p of pages) await p.close();
+
+  await expect(owner.getByRole("button", { name: "Play" })).toBeEnabled({
+    timeout: 30_000,
+  });
   await owner.getByRole("button", { name: "Play" }).click();
+  await owner.bringToFront();
 
   await expect(owner.locator("#arenaWrap")).toBeVisible({ timeout: 60_000 });
-  // wait for ended status or results list
-  await expect(owner.locator("#resultsPanel, .results, strong")).toContainText(/ended|Resultados|#1/i, {
-    timeout: 240_000,
-  }).catch(async () => {
-    await expect(owner.getByText(/ended|Resultados/i)).toBeVisible({ timeout: 1_000 });
-  });
-  // more reliable: poll room status via API-ish UI text
+  // hold a bit of arena time in the recording before status flips
   await expect
     .poll(async () => owner.locator("body").innerText(), { timeout: 240_000 })
-    .toMatch(/ended|Resultados|#\d/i);
+    .toMatch(/Status:\s*(ended|failed)|Resultados|#\d/i);
+  await expect(owner.locator("body")).not.toContainText(/Status:\s*failed/i);
+  await owner.waitForTimeout(1500);
 
-  for (const p of pages) await p.close();
-  await owner.close();
+  await ctx.close();
 });
 
 test("scale report page renders", async ({ page }) => {
   await page.goto("/scale");
-  await expect(page.getByRole("heading", { name: "Scale report" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Scale report" }),
+  ).toBeVisible();
 });

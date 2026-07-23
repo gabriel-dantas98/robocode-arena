@@ -7,6 +7,7 @@ import {
   chmodSync,
   readdirSync,
   statSync,
+  symlinkSync,
 } from "fs";
 import { join, basename, resolve } from "path";
 
@@ -81,6 +82,16 @@ function ensureBootAssets(botDir: string, botName: string, lang: BotLang) {
   const shPath = join(botDir, `${botName}.sh`);
 
   if (lang === "typescript" || lang === "javascript") {
+    // ESM ignores NODE_PATH — link shared workshop deps into the bot dir.
+    const sharedNm = join(ROOT, "bots/node_modules");
+    const localNm = join(botDir, "node_modules");
+    if (existsSync(sharedNm) && !existsSync(localNm)) {
+      try {
+        symlinkSync(sharedNm, localNm, "dir");
+      } catch {
+        // leave for host install
+      }
+    }
     const pkg = join(botDir, "package.json");
     if (!existsSync(pkg)) {
       writeFileSync(
@@ -100,16 +111,15 @@ function ensureBootAssets(botDir: string, botName: string, lang: BotLang) {
         ),
       );
     }
-    if (!existsSync(shPath)) {
-      const runner =
-        lang === "typescript"
-          ? `"${ROOT}/bots/node_modules/.bin/tsx" "${botName}.ts"`
-          : `node "${botName}.js"`;
-      writeFileSync(
-        shPath,
-        `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\nexport NODE_OPTIONS="--disable-warning=ExperimentalWarning"\nexec ${runner}\n`,
-      );
-    }
+    // Always rewrite launcher so uploads don't depend on machine-specific paths in the zip.
+    const runner =
+      lang === "typescript"
+        ? `"${ROOT}/bots/node_modules/.bin/tsx" "${botName}.ts"`
+        : `node "${botName}.js"`;
+    writeFileSync(
+      shPath,
+      `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\nexport NODE_OPTIONS="--disable-warning=ExperimentalWarning"\nexec ${runner}\n`,
+    );
   }
 
   if (lang === "java" && !existsSync(shPath)) {

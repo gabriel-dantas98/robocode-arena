@@ -1,0 +1,22 @@
+# Local / VPS: engine + lobby in one container (bots spawn inside the same host)
+services:
+  arena:
+    build: .
+    ports:
+      - "7610:7610"   # lobby (public)
+      # - "7601:7601" # engine — keep internal unless debugging
+    environment:
+      ENGINE_PORT: "7601"
+      LOBBY_PORT: "7610"
+      ENGINE_URL: "http://127.0.0.1:7601"
+      LOBBY_MAX_PLAYERS: "40"
+      JAVA_OPTS: "-Xmx768m -XX:+UseG1GC"
+      # PUBLIC_URL: "https://arena.example.com"
+    volumes:
+      - arena-uploads:/app/data/uploads
+    restart: unless-stopped
+    # Workshop: one battle can spawn many JVMs — give the box RAM
+    mem_limit: 4g
+
+volumes:
+  arena-uploads:

@@ -31,5 +31,5 @@ kotlin {
 }
 
 tasks.named<JavaExec>("run") {
-    jvmArgs = listOf("-Xmx2g")
+    jvmArgs = listOf("-Xmx768m", "-XX:+UseG1GC")
 }
