@@ -26,8 +26,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g tsx \
-    && pip3 install --break-system-packages "robocode-tank-royale==1.0.2" \
+    && python3 -m venv /opt/robocode-py \
+    && /opt/robocode-py/bin/pip install --no-cache-dir "robocode-tank-royale==1.0.2" \
     && rm -rf /var/lib/apt/lists/*
+
+# Prefer venv python for lab/workshop .py bots
+ENV PATH="/opt/robocode-py/bin:$PATH"
 
 # Bun for lobby
 COPY --from=oven/bun:1.2-debian /usr/local/bin/bun /usr/local/bin/bun
