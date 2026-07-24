@@ -49,7 +49,41 @@ arena.seudominio.com {
 
 Set `PUBLIC_URL=https://arena.seudominio.com` no compose pra link da sala bater.
 
-## Opção 2 — Fly.io (sketch)
+## Opção 2 — Railway (smoke verified)
+
+Single Docker service = lobby + engine + bot processes on one container.
+
+```bash
+# once (logged in)
+cd robocode-arena
+railway init -n robocode-arena -w "<workspace-id>"
+railway add -s arena \
+  --variables "ENGINE_PORT=7601" \
+  --variables "ENGINE_URL=http://127.0.0.1:7601" \
+  --variables "LOBBY_MAX_PLAYERS=20" \
+  --variables "JAVA_OPTS=-Xmx512m -XX:+UseSerialGC"
+railway service link arena
+railway up -d -c
+railway domain   # → https://….up.railway.app
+railway variables set PUBLIC_URL=https://….up.railway.app
+```
+
+Config no repo: [`railway.toml`](../railway.toml) (Dockerfile builder + `/api/health`).
+
+**Smoke (2026-07-24):**
+
+- URL: https://arena-production-1bcf.up.railway.app
+- `/api/health` → `engineOk: true`
+- `LOBBY_URL=https://arena-production-1bcf.up.railway.app bun scripts/record-match.ts` → partida 3 bots `ended`
+
+Notas:
+
+- Precisa **≥2GB RAM** no serviço (ideal 4GB). Smoke usou `JAVA_OPTS=-Xmx512m`.
+- Lobby honra `PORT` (Railway) e faz **proxy WS** `/api/battles/:id/ws` → engine interno (browser não fala com `:7601`).
+- Uploads são efêmeros sem volume; adicione `railway volume` se quiser persistir.
+- Custo: plano Hobby/Pro conforme uso — não é free-tier confortável pra muitos bots.
+
+## Opção 3 — Fly.io (sketch)
 
 Precisa de **Fly Machine** com memória alta (não Free tier confortável).
 
@@ -63,7 +97,7 @@ fly deploy
 `Dockerfile` na raiz já sobe engine+lobby no mesmo container.  
 Custo e cold start: avalie vs VPS barato (Hetzner CX22 etc.).
 
-## Opção 3 — Só lobby na cloud? Não
+## Opção 4 — Só lobby na cloud? Não
 
 Separar lobby (Vercel) e engine (VPS) quebra o fluxo de zip→path local→`BotEntry.of(path)`.  
 Dá pra fazer com volume compartilhado / object storage + sync, mas é overkill pro workshop.

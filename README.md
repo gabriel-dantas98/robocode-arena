@@ -163,6 +163,7 @@ Ver **[docs/DEPLOY.md](./docs/DEPLOY.md)**.
 Resumo:
 - **Workshop:** `bash scripts/dev.sh` + `bun scripts/tunnel.ts` (ngrok)
 - **VPS:** `docker compose up -d --build` → `:7610`
+- **Railway (smoke):** https://arena-production-1bcf.up.railway.app — ver `docs/DEPLOY.md` Opção 2
 - **Não** roda em Vercel/serverless (bots = processos OS no mesmo host da engine)
 
 ```bash
