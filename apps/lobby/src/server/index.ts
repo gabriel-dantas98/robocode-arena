@@ -13,7 +13,7 @@ const UPLOADS = join(ROOT, "data/uploads");
 const DIST = join(import.meta.dir, "../../dist");
 mkdirSync(UPLOADS, { recursive: true });
 
-const PORT = Number(process.env.LOBBY_PORT || 7610);
+const PORT = Number(process.env.PORT || process.env.LOBBY_PORT || 7610);
 const ENGINE_URL = process.env.ENGINE_URL || "http://127.0.0.1:7601";
 /** Soft cap for workshop rooms (override with LOBBY_MAX_PLAYERS). */
 const MAX_PLAYERS = Number(process.env.LOBBY_MAX_PLAYERS || 40);
@@ -24,9 +24,21 @@ const rooms = new RoomStore(() => PUBLIC_URL);
 const app = new Hono();
 app.use("*", cors());
 
-app.get("/api/health", (c) =>
-  c.json({ ok: true, engine: ENGINE_URL, publicUrl: PUBLIC_URL }),
-);
+app.get("/api/health", async (c) => {
+  let engineOk = false;
+  try {
+    const r = await fetch(`${ENGINE_URL}/health`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    engineOk = r.ok;
+  } catch {
+    engineOk = false;
+  }
+  return c.json(
+    { ok: true, engine: ENGINE_URL, engineOk, publicUrl: PUBLIC_URL },
+    engineOk ? 200 : 503,
+  );
+});
 
 app.post("/api/public-url", async (c) => {
   const body = await c.req.json<{ url?: string }>();
@@ -205,9 +217,19 @@ app.post("/api/rooms/:code/reset", async (c) => {
 });
 
 app.get("/api/battles/:id/proxy-ws-info", (c) => {
-  // client connects directly to engine WS; expose URL
-  const engineWs = ENGINE_URL.replace(/^http/, "ws");
-  return c.json({ wsUrl: `${engineWs}/battles/${c.req.param("id")}/ws` });
+  // Same-origin path — lobby proxies to engine (Railway only exposes one PORT).
+  const id = c.req.param("id");
+  const host =
+    c.req.header("x-forwarded-host") || c.req.header("host") || `127.0.0.1:${PORT}`;
+  const fwd = c.req.header("x-forwarded-proto");
+  const proto = fwd === "https" || (!fwd && PORT === 443) ? "wss" : "ws";
+  // Prefer relative construction on https edge
+  const scheme =
+    fwd === "https" || c.req.url.startsWith("https") ? "wss" : proto;
+  return c.json({
+    wsUrl: `${scheme}://${host}/api/battles/${id}/ws`,
+    path: `/api/battles/${id}/ws`,
+  });
 });
 
 app.get("/api/scale/results", async (c) => {
@@ -260,11 +282,75 @@ app.get("/", async (c) => {
   return c.html(html);
 });
 
-console.log(`Lobby listening on http://127.0.0.1:${PORT}`);
+console.log(`Lobby listening on http://0.0.0.0:${PORT}`);
 console.log(`Engine URL: ${ENGINE_URL}`);
+
+type WsData = {
+  battleId: string;
+  upstream: WebSocket | null;
+};
+
+function engineWsBase() {
+  return ENGINE_URL.replace(/^http/, "ws").replace(/\/$/, "");
+}
 
 export default {
   port: PORT,
-  fetch: app.fetch,
+  hostname: "0.0.0.0",
   idleTimeout: 120,
+  async fetch(req: Request, server: Bun.Server<WsData>) {
+    const url = new URL(req.url);
+    const m = url.pathname.match(/^\/api\/battles\/([^/]+)\/ws$/);
+    if (m) {
+      const battleId = m[1];
+      const ok = server.upgrade(req, { data: { battleId, upstream: null } });
+      if (ok) return undefined as unknown as Response;
+      return new Response("Expected WebSocket Upgrade", { status: 426 });
+    }
+    return app.fetch(req);
+  },
+  websocket: {
+    open(ws: Bun.ServerWebSocket<WsData>) {
+      const upstreamUrl = `${engineWsBase()}/battles/${ws.data.battleId}/ws`;
+      const upstream = new WebSocket(upstreamUrl);
+      ws.data.upstream = upstream;
+
+      upstream.addEventListener("message", (ev) => {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(typeof ev.data === "string" ? ev.data : new Uint8Array(ev.data as ArrayBuffer));
+          }
+        } catch {
+          /* ignore fanout errors */
+        }
+      });
+      upstream.addEventListener("close", () => {
+        try {
+          ws.close();
+        } catch {
+          /* */
+        }
+      });
+      upstream.addEventListener("error", () => {
+        try {
+          ws.close(1011, "upstream error");
+        } catch {
+          /* */
+        }
+      });
+    },
+    message(ws: Bun.ServerWebSocket<WsData>, message: string | Buffer) {
+      const up = ws.data.upstream;
+      if (!up || up.readyState !== WebSocket.OPEN) return;
+      if (typeof message === "string") up.send(message);
+      else up.send(message);
+    },
+    close(ws: Bun.ServerWebSocket<WsData>) {
+      try {
+        ws.data.upstream?.close();
+      } catch {
+        /* */
+      }
+    },
+  },
 };

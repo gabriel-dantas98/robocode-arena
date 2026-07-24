@@ -390,7 +390,12 @@ async function resetRoom() {
 async function connectBattle(battleId) {
   if (state.battleWs) state.battleWs.close();
   const info = await fetch(`/api/battles/${battleId}/proxy-ws-info`).then((r) => r.json());
-  const ws = new WebSocket(info.wsUrl);
+  // Prefer same-origin path (works behind Railway TLS); fall back to absolute wsUrl.
+  const wsUrl =
+    info.path != null
+      ? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${info.path}`
+      : info.wsUrl;
+  const ws = new WebSocket(wsUrl);
   state.battleWs = ws;
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
