@@ -61,9 +61,9 @@ function showErr(msg) {
   p.textContent = msg;
 }
 
-function setStatus(hud, battle) {
+function setStatus(hud, status) {
   el("hudText").textContent = hud;
-  el("hudStatus").textContent = battle || "";
+  if (status != null) el("hudStatus").textContent = status;
 }
 
 async function loadMonaco() {
@@ -281,7 +281,7 @@ async function connectBattle(battleId) {
       drawArena(msg);
       setStatus(
         `R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots`,
-        state.battleId,
+        null,
       );
     }
   };
@@ -348,7 +348,7 @@ async function deploy() {
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     state.battleId = data.battleId;
-    setStatus("booting", data.battleId);
+    setStatus("booting", "BOOTING");
     await connectBattle(data.battleId);
     startPoll(data.battleId);
   } catch (e) {

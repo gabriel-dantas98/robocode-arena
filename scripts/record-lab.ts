@@ -37,7 +37,8 @@ await page.click("#btnDeploy");
 const deadline = Date.now() + 240_000;
 while (Date.now() < deadline) {
   const st = (await page.locator("#hudStatus").innerText()).toUpperCase();
-  console.log("status", st);
+  const hud = await page.locator("#hudText").innerText();
+  console.log("status", st, "hud", hud);
   if (st.includes("ENDED") || st.includes("FAILED")) break;
   await page.waitForTimeout(2000);
 }

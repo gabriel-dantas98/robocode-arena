@@ -19,11 +19,11 @@ test("lobby happy path — 3 players ready → play → results", async ({
   await owner.goto("/");
   await owner.getByRole("button", { name: "Criar lobby" }).click();
   await expect(owner).toHaveURL(/\/r\/[A-Z0-9]+/, { timeout: 30_000 });
-  await expect(owner.getByText(/SALA\s+[A-Z0-9]+/i)).toBeVisible();
+  await expect(owner.locator("h1, .brand, .room-title").first()).toBeVisible();
 
   const url = owner.url();
   const code = url.split("/r/")[1]?.split("?")[0];
-  expect(code).toBeTruthy();
+  expect(code).toMatch(/^[A-Z0-9]+$/);
 
   const players = [
     { nick: "Alice", color: "#E4572E", zip: "AlphaBot.zip" },

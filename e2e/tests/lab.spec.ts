@@ -24,10 +24,15 @@ test("lab playstyle deploy — Tracker vs Easy ends", async ({ browser }, testIn
 
   await page.locator("#btnDeploy").click();
   await expect
-    .poll(async () => page.locator("#hudStatus").innerText(), {
-      timeout: 240_000,
-    })
-    .toMatch(/ENDED|ended|FAILED|failed/i);
+    .poll(
+      async () => {
+        const st = (await page.locator("#hudStatus").innerText()).toUpperCase();
+        const body = await page.locator("body").innerText();
+        return `${st}\n${body}`;
+      },
+      { timeout: 240_000 },
+    )
+    .toMatch(/ENDED|FAILED/i);
 
   const status = (await page.locator("#hudStatus").innerText()).toUpperCase();
   expect(status).toContain("ENDED");
