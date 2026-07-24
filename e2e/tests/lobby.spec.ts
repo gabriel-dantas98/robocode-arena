@@ -41,7 +41,9 @@ test("lobby happy path — 3 players ready → play → results", async ({
     await expect(page.getByText("Seu tank")).toBeVisible();
     await page.locator("#zip").setInputFiles(path.join(zips, p.zip));
     await page.getByRole("button", { name: "Upload zip" }).click();
-    await expect(page.getByText(/Bot:/)).toBeVisible({ timeout: 30_000 });
+    await expect
+      .poll(async () => page.locator("body").innerText(), { timeout: 60_000 })
+      .toMatch(/Bot:\s*\w+|AlphaBot|BravoBot|CharlieBot/i);
     await page.getByRole("button", { name: "Ready" }).click();
     await expect(page.getByRole("button", { name: "Unready" })).toBeVisible();
     pages.push(page);

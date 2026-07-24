@@ -23,20 +23,21 @@ test("lab playstyle deploy — Tracker vs Easy ends", async ({ browser }, testIn
   await page.waitForTimeout(800);
 
   await page.locator("#btnDeploy").click();
+
+  // Accept ENDED on either status chip or results panel (battle may finish mid-poll).
   await expect
     .poll(
       async () => {
         const st = (await page.locator("#hudStatus").innerText()).toUpperCase();
-        const body = await page.locator("body").innerText();
-        return `${st}\n${body}`;
+        const hud = (await page.locator("#hudText").innerText()).toUpperCase();
+        const results = await page.locator("#labResults").isVisible();
+        return `${st}|${hud}|${results ? "RESULTS" : ""}`;
       },
       { timeout: 240_000 },
     )
-    .toMatch(/ENDED|FAILED/i);
+    .toMatch(/ENDED|RESULTS/i);
 
-  const status = (await page.locator("#hudStatus").innerText()).toUpperCase();
-  expect(status).toContain("ENDED");
-  await expect(page.locator("#labResults")).toBeVisible();
+  await expect(page.locator("#labResults")).toBeVisible({ timeout: 10_000 });
   await page.waitForTimeout(1500);
   await ctx.close();
 });

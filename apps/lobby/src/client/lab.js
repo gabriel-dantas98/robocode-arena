@@ -316,7 +316,7 @@ function startPoll(battleId) {
             )
             .join("\n");
         }
-        setStatus(st === "ENDED" ? "ended" : st.toLowerCase(), battleId);
+        setStatus(st === "ENDED" ? "ended" : st.toLowerCase(), st);
       }
     } catch {
       /* ignore */
