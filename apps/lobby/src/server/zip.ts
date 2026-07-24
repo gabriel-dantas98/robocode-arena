@@ -14,7 +14,12 @@ import { join, basename, resolve } from "path";
 const MAX_ZIP_BYTES = 15 * 1024 * 1024;
 const ROOT = resolve(import.meta.dir, "../../../..");
 
-export type BotLang = "typescript" | "javascript" | "java" | "python" | "csharp";
+export type BotLang =
+  | "typescript"
+  | "javascript"
+  | "java"
+  | "python"
+  | "csharp";
 
 export type ValidatedBot = {
   botDir: string;
@@ -32,7 +37,8 @@ export async function extractAndValidateZipAsync(
   }
 
   const playerDir = join(destRoot, playerId);
-  if (existsSync(playerDir)) rmSync(playerDir, { recursive: true, force: true });
+  if (existsSync(playerDir))
+    rmSync(playerDir, { recursive: true, force: true });
   mkdirSync(playerDir, { recursive: true });
 
   const zip = new AdmZip(zipBuffer);
@@ -78,7 +84,11 @@ function detectLang(botDir: string, botName: string): BotLang {
   );
 }
 
-export function ensureBootAssets(botDir: string, botName: string, lang: BotLang) {
+export function ensureBootAssets(
+  botDir: string,
+  botName: string,
+  lang: BotLang,
+) {
   const shPath = join(botDir, `${botName}.sh`);
 
   if (lang === "typescript" || lang === "javascript") {
