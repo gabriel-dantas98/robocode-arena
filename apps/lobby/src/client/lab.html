@@ -31,6 +31,10 @@
             </select>
           </label>
           <label>
+            Playstyle
+            <select id="example"></select>
+          </label>
+          <label>
             Diff
             <select id="difficulty">
               <option value="easy">Easy</option>
@@ -40,12 +44,13 @@
           </label>
           <label>
             Bot
-            <input id="botName" type="text" value="LabBot" maxlength="32" />
+            <input id="botName" type="text" value="Starter" maxlength="32" />
           </label>
           <button type="button" class="ghost" id="btnOpen" hidden>Abrir</button>
           <button type="button" class="ghost" id="btnSave" hidden>Salvar</button>
           <button type="button" id="btnDeploy">Deploy</button>
         </div>
+        <p id="exampleBlurb" class="lab-blurb muted"></p>
         <div id="monaco" class="lab-monaco"></div>
         <pre id="labError" class="lab-error" hidden></pre>
       </section>

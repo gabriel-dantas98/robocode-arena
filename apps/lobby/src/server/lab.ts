@@ -36,6 +36,77 @@ const OPPONENTS: Record<LabDifficulty, string[]> = {
 const ROOT = resolve(import.meta.dir, "../../../..");
 const OPPONENTS_ROOT = join(ROOT, "bots/opponents");
 const TEMPLATES_ROOT = join(ROOT, "bots/lab-templates");
+const EXAMPLES_ROOT = join(ROOT, "bots/lab-examples");
+
+export type LabExampleMeta = {
+  id: string;
+  botName: string;
+  title: string;
+  blurb: string;
+};
+
+export function listExamples(): LabExampleMeta[] {
+  const path = join(EXAMPLES_ROOT, "catalog.json");
+  if (!existsSync(path)) return [];
+  return JSON.parse(readFileSync(path, "utf8")) as LabExampleMeta[];
+}
+
+export function loadExample(
+  id: string,
+  lang: LabLang,
+): {
+  id: string;
+  lang: LabLang;
+  botName: string;
+  filename: string;
+  source: string;
+  title: string;
+  blurb: string;
+} {
+  const meta = listExamples().find((e) => e.id === id);
+  if (!meta) throw new Error(`Unknown example: ${id}`);
+  const filename = `${meta.botName}${EXT[lang]}`;
+  const path = join(EXAMPLES_ROOT, lang, filename);
+  if (!existsSync(path)) throw new Error(`Example ${id} missing for ${lang}`);
+  return {
+    id,
+    lang,
+    botName: meta.botName,
+    filename,
+    source: readFileSync(path, "utf8"),
+    title: meta.title,
+    blurb: meta.blurb,
+  };
+}
+
+export function loadTemplate(lang: LabLang): {
+  lang: LabLang;
+  botName: string;
+  filename: string;
+  source: string;
+} {
+  try {
+    const ex = loadExample("starter", lang);
+    return {
+      lang: ex.lang,
+      botName: ex.botName,
+      filename: ex.filename,
+      source: ex.source,
+    };
+  } catch {
+    /* fall through to legacy LabBot */
+  }
+  const botName = "LabBot";
+  const filename = `${botName}${EXT[lang]}`;
+  const path = join(TEMPLATES_ROOT, lang, filename);
+  if (!existsSync(path)) throw new Error(`Template not found for ${lang}`);
+  return {
+    lang,
+    botName,
+    filename,
+    source: readFileSync(path, "utf8"),
+  };
+}
 
 let labBusy = false;
 let busyClearTimer: ReturnType<typeof setTimeout> | null = null;
@@ -48,7 +119,9 @@ export function materializeBotFromSource(opts: {
   source: string;
 }): { botDir: string; botName: string; lang: LabLang } {
   if (!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(opts.botName)) {
-    throw new Error("Invalid botName (use letters/numbers/underscore, start with letter)");
+    throw new Error(
+      "Invalid botName (use letters/numbers/underscore, start with letter)",
+    );
   }
   if (opts.source.length > 200_000) throw new Error("Source too large (max 200KB)");
   if (!(opts.lang in EXT)) throw new Error("Unsupported lang");
@@ -92,24 +165,6 @@ export function resolveOpponents(difficulty: LabDifficulty): string[] {
 
 function basenameSafe(p: string) {
   return p.split(/[/\\]/).filter(Boolean).pop()!;
-}
-
-export function loadTemplate(lang: LabLang): {
-  lang: LabLang;
-  botName: string;
-  filename: string;
-  source: string;
-} {
-  const botName = "LabBot";
-  const filename = `${botName}${EXT[lang]}`;
-  const path = join(TEMPLATES_ROOT, lang, filename);
-  if (!existsSync(path)) throw new Error(`Template not found for ${lang}`);
-  return {
-    lang,
-    botName,
-    filename,
-    source: readFileSync(path, "utf8"),
-  };
 }
 
 function checkRateLimit(ip: string) {

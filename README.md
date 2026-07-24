@@ -34,6 +34,8 @@ export PATH="$JAVA_HOME/bin:$PATH"
 
 Playground solo em **`/lab`**: editor (TS / Java / Python) → **Deploy** → você vs 3 clones Easy/Medium/Hard.
 
+Playstyles prontos (dropdown): **Starter**, **Rammer**, **Spinner**, **Tracker**, **Walls** — mesmos exemplos nas 3 langs.
+
 - Abrir/Salvar local via File System Access (Chromium)
 - Spec: `docs/superpowers/specs/2026-07-24-lab-ide-design.md`
 - Python local: `pip3 install robocode-tank-royale==1.0.2`

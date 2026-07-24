@@ -2,25 +2,26 @@ from robocode_tank_royale.bot_api import Bot, BotInfo
 from robocode_tank_royale.bot_api.events import ScannedBotEvent, HitWallEvent
 
 
-class LabBot(Bot):
-    """Lab starter — move, scan, fire. Edit & Deploy."""
+class Rammer(Bot):
+    """Rammer — charge scanned bots."""
 
     def __init__(self) -> None:
-        super().__init__(BotInfo.from_file("LabBot.json"))
+        super().__init__(BotInfo.from_file("Rammer.json"))
 
     def run(self) -> None:
         while self.running:
-            self.turn_radar_right(360)
-            self.forward(50)
-            self.turn_left(20)
+            self.turn_radar_right(45)
+            self.forward(80)
 
     def on_scanned_bot(self, e: ScannedBotEvent) -> None:
-        self.fire(1.5)
+        self.turn_left(self.bearing_to(e.x, e.y))
+        self.fire(1)
+        self.forward(120)
 
     def on_hit_wall(self, e: HitWallEvent) -> None:
-        self.back(60)
-        self.turn_right(90)
+        self.back(40)
+        self.turn_right(120)
 
 
 if __name__ == "__main__":
-    LabBot().start()
+    Rammer().start()

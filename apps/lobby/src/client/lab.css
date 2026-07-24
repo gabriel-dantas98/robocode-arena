@@ -34,6 +34,12 @@
   color: var(--accent);
 }
 
+.lab-blurb {
+  margin: 0 0 0.5rem;
+  padding: 0 0.15rem;
+  font-size: 0.85rem;
+}
+
 .lab-grid {
   flex: 1;
   display: grid;

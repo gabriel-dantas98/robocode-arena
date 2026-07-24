@@ -1,0 +1,7 @@
+[
+  { "id": "starter", "botName": "Starter", "title": "Starter", "blurb": "Scan + move + fire — baseline" },
+  { "id": "rammer", "botName": "Rammer", "title": "Rammer", "blurb": "Investe no alvo scaneado" },
+  { "id": "spinner", "botName": "Spinner", "title": "Spinner", "blurb": "Gira e dispara em tudo" },
+  { "id": "tracker", "botName": "Tracker", "title": "Tracker", "blurb": "Mira o canhão no scan" },
+  { "id": "walls", "botName": "Walls", "title": "Walls", "blurb": "Corre pela borda da arena" }
+]

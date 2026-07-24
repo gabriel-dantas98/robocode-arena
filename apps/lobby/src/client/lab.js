@@ -13,8 +13,8 @@ const PLAYER_COLOR = "#3de0ff";
 const state = {
   editor: null,
   lang: "ts",
-  difficulty: "medium",
-  botName: "LabBot",
+  exampleId: "starter",
+  examples: [],
   dirty: false,
   deploying: false,
   battleWs: null,
@@ -42,15 +42,16 @@ function saveDraft() {
   localStorage.setItem(
     draftKey(state.lang),
     JSON.stringify({
-      botName: el("botName").value.trim() || "LabBot",
+      botName: el("botName").value.trim() || "Starter",
       source: state.editor.getValue(),
       difficulty: el("difficulty").value,
+      exampleId: state.exampleId,
     }),
   );
 }
 
 function showErr(msg) {
-  const p = el("errPanel");
+  const p = el("labError");
   if (!msg) {
     p.hidden = true;
     p.textContent = "";
@@ -62,7 +63,7 @@ function showErr(msg) {
 
 function setStatus(hud, battle) {
   el("hudText").textContent = hud;
-  el("battleStatus").textContent = battle || "";
+  el("hudStatus").textContent = battle || "";
 }
 
 async function loadMonaco() {
@@ -84,15 +85,64 @@ async function loadMonaco() {
   });
 }
 
-async function fetchTemplate(lang) {
-  const r = await fetch(`/api/lab/templates/${lang}`);
-  if (!r.ok) throw new Error((await r.json()).error || "template failed");
+async function fetchExamples() {
+  const r = await fetch("/api/lab/examples");
+  if (!r.ok) throw new Error("failed to load examples");
+  const data = await r.json();
+  return data.examples || [];
+}
+
+async function fetchExample(id, lang) {
+  const r = await fetch(`/api/lab/examples/${id}?lang=${lang}`);
+  if (!r.ok) throw new Error((await r.json()).error || "example failed");
   return r.json();
+}
+
+function fillExampleSelect() {
+  const sel = el("example");
+  sel.innerHTML = "";
+  for (const ex of state.examples) {
+    const opt = document.createElement("option");
+    opt.value = ex.id;
+    opt.textContent = ex.title;
+    sel.appendChild(opt);
+  }
+  sel.value = state.exampleId;
+}
+
+function setBlurb(text) {
+  const b = el("exampleBlurb");
+  if (b) b.textContent = text || "";
+}
+
+async function loadPlaystyle(id, { force = false } = {}) {
+  if (!force && state.dirty) {
+    const ok = confirm("Descartar mudanças e carregar este playstyle?");
+    if (!ok) {
+      el("example").value = state.exampleId;
+      return;
+    }
+  }
+  state.exampleId = id;
+  el("example").value = id;
+  const ex = await fetchExample(id, state.lang);
+  el("botName").value = ex.botName;
+  setBlurb(ex.blurb);
+  if (state.editor) {
+    window.monaco.editor.setModelLanguage(
+      state.editor.getModel(),
+      MONACO_LANG[state.lang],
+    );
+    state.editor.setValue(ex.source);
+  }
+  state.dirty = false;
+  state.fileHandle = null;
+  saveDraft();
 }
 
 async function setLang(lang, { force = false } = {}) {
   if (!force && state.dirty) {
-    const ok = confirm("Descartar mudanças e carregar template da nova lang?");
+    const ok = confirm("Descartar mudanças e trocar de linguagem?");
     if (!ok) {
       el("lang").value = state.lang;
       return;
@@ -100,28 +150,27 @@ async function setLang(lang, { force = false } = {}) {
   }
   state.lang = lang;
   el("lang").value = lang;
+
   const draft = loadDraft(lang);
-  let source;
-  let botName = "LabBot";
-  if (draft?.source) {
-    source = draft.source;
-    botName = draft.botName || "LabBot";
+  if (draft?.source && !force) {
+    if (draft.exampleId) state.exampleId = draft.exampleId;
+    el("example").value = state.exampleId;
+    el("botName").value = draft.botName || "Starter";
     if (draft.difficulty) el("difficulty").value = draft.difficulty;
-  } else {
-    const t = await fetchTemplate(lang);
-    source = t.source;
-    botName = t.botName;
-  }
-  el("botName").value = botName;
-  state.botName = botName;
+    const meta = state.examples.find((e) => e.id === state.exampleId);
+    setBlurb(meta?.blurb || "");
     if (state.editor) {
-      const model = state.editor.getModel();
-      window.monaco.editor.setModelLanguage(model, MONACO_LANG[lang]);
-      state.editor.setValue(source);
+      window.monaco.editor.setModelLanguage(
+        state.editor.getModel(),
+        MONACO_LANG[lang],
+      );
+      state.editor.setValue(draft.source);
     }
-  state.dirty = false;
-  state.fileHandle = null;
-  saveDraft();
+    state.dirty = false;
+    return;
+  }
+
+  await loadPlaystyle(state.exampleId || "starter", { force: true });
 }
 
 function drawArena(msg) {
@@ -130,7 +179,14 @@ function drawArena(msg) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
   const h = canvas.height;
-  const grad = ctx.createRadialGradient(w * 0.5, h * 0.45, 40, w * 0.5, h * 0.5, w * 0.7);
+  const grad = ctx.createRadialGradient(
+    w * 0.5,
+    h * 0.45,
+    40,
+    w * 0.5,
+    h * 0.5,
+    w * 0.7,
+  );
   grad.addColorStop(0, "#121a24");
   grad.addColorStop(1, "#070b10");
   ctx.fillStyle = grad;
@@ -163,14 +219,20 @@ function drawArena(msg) {
 
   for (let i = 0; i < sorted.length; i++) {
     const b = sorted[i];
-    const color = i === 0 ? PLAYER_COLOR : oppColors[(i - 1) % oppColors.length];
+    const color =
+      i === 0 ? PLAYER_COLOR : oppColors[(i - 1) % oppColors.length];
     const chassis = i === 0 ? "segfault" : i % 2 === 0 ? "docker" : "techdebt";
     const x = pad + (b.x || 0) * s;
     const y = pad + (maxY - (b.y || 0)) * s;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(((-(b.direction || 0)) * Math.PI) / 180);
-    drawTank(ctx, { chassis, color, scale: 1.15 * tankScale, energy: b.energy });
+    drawTank(ctx, {
+      chassis,
+      color,
+      scale: 1.15 * tankScale,
+      energy: b.energy,
+    });
     ctx.restore();
     const energy = Math.max(0, Math.min(100, b.energy ?? 100));
     ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -179,13 +241,19 @@ function drawArena(msg) {
     ctx.fillRect(x - 16, y - 28, 32 * (energy / 100), 4);
     ctx.fillStyle = "#e7eef6";
     ctx.font = "600 12px Oxanium, sans-serif";
-    ctx.fillText(i === 0 ? el("botName").value || "You" : `Opp${i}`, x + 14, y - 10);
+    ctx.fillText(
+      i === 0 ? el("botName").value || "You" : `Opp${i}`,
+      x + 14,
+      y - 10,
+    );
   }
 }
 
 async function connectBattle(battleId) {
   if (state.battleWs) state.battleWs.close();
-  const info = await fetch(`/api/battles/${battleId}/proxy-ws-info`).then((r) => r.json());
+  const info = await fetch(`/api/battles/${battleId}/proxy-ws-info`).then((r) =>
+    r.json(),
+  );
   const wsUrl =
     info.path != null
       ? `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${info.path}`
@@ -196,7 +264,10 @@ async function connectBattle(battleId) {
     const msg = JSON.parse(ev.data);
     if (msg.type === "tick") {
       drawArena(msg);
-      setStatus(`R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots`, state.battleId);
+      setStatus(
+        `R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots`,
+        state.battleId,
+      );
     }
   };
 }
@@ -214,16 +285,14 @@ function startPoll(battleId) {
       if (!r.ok) return;
       const snap = await r.json();
       const st = snap.status || "";
-      el("battleStatus").textContent = st;
+      el("hudStatus").textContent = st;
       if (st === "ENDED" || st === "FAILED" || st === "STOPPED") {
         stopPoll();
         state.deploying = false;
-        el("deploy").disabled = false;
-        if (st === "FAILED") {
-          showErr(snap.error || "Battle FAILED");
-        }
+        el("btnDeploy").disabled = false;
+        if (st === "FAILED") showErr(snap.error || "Battle FAILED");
         if (snap.results?.length) {
-          const box = el("results");
+          const box = el("labResults");
           box.hidden = false;
           box.textContent = snap.results
             .map(
@@ -243,8 +312,8 @@ function startPoll(battleId) {
 async function deploy() {
   if (state.deploying || !state.editor) return;
   showErr("");
-  el("results").hidden = true;
-  const botName = el("botName").value.trim() || "LabBot";
+  el("labResults").hidden = true;
+  const botName = el("botName").value.trim() || "Starter";
   const body = {
     lang: state.lang,
     botName,
@@ -252,7 +321,7 @@ async function deploy() {
     difficulty: el("difficulty").value,
   };
   state.deploying = true;
-  el("deploy").disabled = true;
+  el("btnDeploy").disabled = true;
   setStatus("deploying…", "");
   saveDraft();
   try {
@@ -270,21 +339,9 @@ async function deploy() {
   } catch (e) {
     showErr(e instanceof Error ? e.message : String(e));
     state.deploying = false;
-    el("deploy").disabled = false;
+    el("btnDeploy").disabled = false;
     setStatus("idle", "");
   }
-}
-
-function acceptForLang(lang) {
-  const ext = EXT[lang];
-  return [
-    {
-      description: `${lang} bot`,
-      accept: {
-        "text/plain": [ext],
-      },
-    },
-  ];
 }
 
 async function openFile() {
@@ -295,9 +352,7 @@ async function openFile() {
       types: [
         {
           description: "Bot source",
-          accept: {
-            "text/plain": [".ts", ".java", ".py"],
-          },
+          accept: { "text/plain": [".ts", ".java", ".py"] },
         },
       ],
     });
@@ -316,7 +371,10 @@ async function openFile() {
       el("botName").value = base;
     }
     if (state.editor) {
-      window.monaco.editor.setModelLanguage(state.editor.getModel(), MONACO_LANG[lang]);
+      window.monaco.editor.setModelLanguage(
+        state.editor.getModel(),
+        MONACO_LANG[lang],
+      );
       state.editor.setValue(text);
     }
     state.dirty = true;
@@ -331,12 +389,17 @@ async function saveFile() {
   if (!window.showSaveFilePicker || !state.editor) return;
   try {
     const ext = EXT[state.lang];
-    const suggested = `${el("botName").value.trim() || "LabBot"}${ext}`;
+    const suggested = `${el("botName").value.trim() || "Starter"}${ext}`;
     const handle =
       state.fileHandle ||
       (await window.showSaveFilePicker({
         suggestedName: suggested,
-        types: acceptForLang(state.lang),
+        types: [
+          {
+            description: `${state.lang} bot`,
+            accept: { "text/plain": [ext] },
+          },
+        ],
       }));
     state.fileHandle = handle;
     const writable = await handle.createWritable();
@@ -352,7 +415,7 @@ async function saveFile() {
 
 async function boot() {
   const monaco = await loadMonaco();
-  state.editor = monaco.editor.create(el("editor"), {
+  state.editor = monaco.editor.create(el("monaco"), {
     value: "",
     language: "typescript",
     theme: "vs-dark",
@@ -367,18 +430,19 @@ async function boot() {
     saveDraft();
   });
 
-  if (window.showOpenFilePicker) el("openFile").hidden = false;
-  if (window.showSaveFilePicker) el("saveFile").hidden = false;
+  state.examples = await fetchExamples();
+  fillExampleSelect();
+
+  if (window.showOpenFilePicker) el("btnOpen").hidden = false;
+  if (window.showSaveFilePicker) el("btnSave").hidden = false;
 
   el("lang").onchange = () => setLang(el("lang").value);
-  el("difficulty").onchange = () => {
-    state.difficulty = el("difficulty").value;
-    saveDraft();
-  };
+  el("example").onchange = () => loadPlaystyle(el("example").value);
+  el("difficulty").onchange = () => saveDraft();
   el("botName").onchange = () => saveDraft();
-  el("deploy").onclick = () => deploy();
-  el("openFile").onclick = () => openFile();
-  el("saveFile").onclick = () => saveFile();
+  el("btnDeploy").onclick = () => deploy();
+  el("btnOpen").onclick = () => openFile();
+  el("btnSave").onclick = () => saveFile();
 
   window.addEventListener("keydown", (ev) => {
     const mod = ev.metaKey || ev.ctrlKey;
@@ -392,7 +456,9 @@ async function boot() {
     }
   });
 
-  await setLang(el("lang").value, { force: true });
+  const draft = loadDraft("ts");
+  if (draft?.exampleId) state.exampleId = draft.exampleId;
+  await setLang("ts", { force: true });
   setStatus("idle", "");
 }
 

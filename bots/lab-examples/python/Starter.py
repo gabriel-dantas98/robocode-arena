@@ -2,11 +2,11 @@ from robocode_tank_royale.bot_api import Bot, BotInfo
 from robocode_tank_royale.bot_api.events import ScannedBotEvent, HitWallEvent
 
 
-class LabBot(Bot):
-    """Lab starter — move, scan, fire. Edit & Deploy."""
+class Starter(Bot):
+    """Starter — scan, move, fire."""
 
     def __init__(self) -> None:
-        super().__init__(BotInfo.from_file("LabBot.json"))
+        super().__init__(BotInfo.from_file("Starter.json"))
 
     def run(self) -> None:
         while self.running:
@@ -23,4 +23,4 @@ class LabBot(Bot):
 
 
 if __name__ == "__main__":
-    LabBot().start()
+    Starter().start()

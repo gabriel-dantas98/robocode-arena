@@ -9,6 +9,8 @@ import { extractAndValidateZipAsync } from "./zip";
 import {
   deployLab,
   loadTemplate,
+  listExamples,
+  loadExample,
   sweepOldLabSessions,
   type LabDifficulty,
   type LabLang,
@@ -252,6 +254,22 @@ app.get("/api/lab/templates/:lang", (c) => {
       return c.json({ error: "lang must be ts|java|python" }, 400);
     }
     return c.json(loadTemplate(lang));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 404);
+  }
+});
+
+app.get("/api/lab/examples", (c) => {
+  return c.json({ examples: listExamples() });
+});
+
+app.get("/api/lab/examples/:id", (c) => {
+  try {
+    const lang = (c.req.query("lang") || "ts") as LabLang;
+    if (!["ts", "java", "python"].includes(lang)) {
+      return c.json({ error: "lang must be ts|java|python" }, 400);
+    }
+    return c.json(loadExample(c.req.param("id"), lang));
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 404);
   }
