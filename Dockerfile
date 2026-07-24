@@ -30,8 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && /opt/robocode-py/bin/pip install --no-cache-dir "robocode-tank-royale==1.0.2" \
     && rm -rf /var/lib/apt/lists/*
 
-# Prefer venv python for lab/workshop .py bots
-ENV PATH="/opt/robocode-py/bin:$PATH"
+# Prefer venv python for lab/workshop .py bots (merged into PATH below)
 
 # Bun for lobby
 COPY --from=oven/bun:1.2-debian /usr/local/bin/bun /usr/local/bin/bun
@@ -49,7 +48,7 @@ RUN mkdir -p /app/data/uploads /app/data/lab /app/data/scale-results \
   && chmod +x /app/scripts/docker-entrypoint.sh
 
 ENV JAVA_HOME=/opt/java/openjdk
-ENV PATH="$JAVA_HOME/bin:/usr/local/bin:$PATH"
+ENV PATH="/opt/robocode-py/bin:$JAVA_HOME/bin:/usr/local/bin:$PATH"
 ENV ENGINE_PORT=7601
 ENV LOBBY_PORT=7610
 ENV ENGINE_URL=http://127.0.0.1:7601
