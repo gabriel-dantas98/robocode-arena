@@ -67,22 +67,37 @@ function setStatus(hud, battle) {
 }
 
 async function loadMonaco() {
-  if (window.monaco) return window.monaco;
+  if (window.monaco?.editor?.create) return window.monaco;
   await new Promise((resolve, reject) => {
     const s = document.createElement("script");
     s.src = `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VER}/min/vs/loader.js`;
     s.onload = resolve;
-    s.onerror = reject;
+    s.onerror = () => reject(new Error("Failed to load Monaco loader"));
     document.head.appendChild(s);
   });
+  if (!window.require) throw new Error("Monaco AMD require missing");
   window.require.config({
     paths: {
       vs: `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VER}/min/vs`,
     },
   });
-  return new Promise((resolve) => {
-    window.require(["vs/editor/editor.main"], () => resolve(window.monaco));
+  // Cross-origin workers need a blob/data bootstrap (CDN worker URLs alone fail).
+  window.MonacoEnvironment = {
+    getWorkerUrl() {
+      const base = `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VER}/min/`;
+      return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+        self.MonacoEnvironment = { baseUrl: '${base}' };
+        importScripts('${base}vs/base/worker/workerMain.js');
+      `)}`;
+    },
+  };
+  await new Promise((resolve, reject) => {
+    window.require(["vs/editor/editor.main"], () => resolve(), reject);
   });
+  if (!window.monaco?.editor?.create) {
+    throw new Error("Monaco editor.main loaded without monaco.editor");
+  }
+  return window.monaco;
 }
 
 async function fetchExamples() {
@@ -414,8 +429,14 @@ async function saveFile() {
 }
 
 async function boot() {
-  const monaco = await loadMonaco();
-  state.editor = monaco.editor.create(el("monaco"), {
+  state.examples = await fetchExamples();
+  fillExampleSelect();
+
+  const monacoApi = await loadMonaco();
+  if (!monacoApi?.editor?.create) {
+    throw new Error("Monaco editor failed to load");
+  }
+  state.editor = monacoApi.editor.create(el("monaco"), {
     value: "",
     language: "typescript",
     theme: "vs-dark",
@@ -429,9 +450,6 @@ async function boot() {
     state.dirty = true;
     saveDraft();
   });
-
-  state.examples = await fetchExamples();
-  fillExampleSelect();
 
   if (window.showOpenFilePicker) el("btnOpen").hidden = false;
   if (window.showSaveFilePicker) el("btnSave").hidden = false;

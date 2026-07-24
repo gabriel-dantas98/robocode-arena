@@ -5,6 +5,8 @@ export default defineConfig({
   timeout: 300_000,
   expect: { timeout: 30_000 },
   retries: 0,
+  fullyParallel: false,
+  workers: 1,
   use: {
     baseURL: process.env.LOBBY_URL || "http://127.0.0.1:7610",
     trace: "on",
