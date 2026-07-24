@@ -220,7 +220,9 @@ app.get("/api/battles/:id/proxy-ws-info", (c) => {
   // Same-origin path — lobby proxies to engine (Railway only exposes one PORT).
   const id = c.req.param("id");
   const host =
-    c.req.header("x-forwarded-host") || c.req.header("host") || `127.0.0.1:${PORT}`;
+    c.req.header("x-forwarded-host") ||
+    c.req.header("host") ||
+    `127.0.0.1:${PORT}`;
   const fwd = c.req.header("x-forwarded-proto");
   const proto = fwd === "https" || (!fwd && PORT === 443) ? "wss" : "ws";
   // Prefer relative construction on https edge
@@ -318,7 +320,11 @@ export default {
       upstream.addEventListener("message", (ev) => {
         try {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(typeof ev.data === "string" ? ev.data : new Uint8Array(ev.data as ArrayBuffer));
+            ws.send(
+              typeof ev.data === "string"
+                ? ev.data
+                : new Uint8Array(ev.data as ArrayBuffer),
+            );
           }
         } catch {
           /* ignore fanout errors */

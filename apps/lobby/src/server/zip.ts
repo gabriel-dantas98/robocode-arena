@@ -78,7 +78,7 @@ function detectLang(botDir: string, botName: string): BotLang {
   );
 }
 
-function ensureBootAssets(botDir: string, botName: string, lang: BotLang) {
+export function ensureBootAssets(botDir: string, botName: string, lang: BotLang) {
   const shPath = join(botDir, `${botName}.sh`);
 
   if (lang === "typescript" || lang === "javascript") {
