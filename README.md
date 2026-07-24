@@ -30,7 +30,17 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
 export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
+## Lab IDE
+
+Playground solo em **`/lab`**: editor (TS / Java / Python) → **Deploy** → você vs 3 clones Easy/Medium/Hard.
+
+- Abrir/Salvar local via File System Access (Chromium)
+- Spec: `docs/superpowers/specs/2026-07-24-lab-ide-design.md`
+- Python local: `pip3 install robocode-tank-royale==1.0.2`
+- Java: precisa JDK 21 (`javac`)
+
 ## Subir tudo (workshop)
+
 
 ### Opção A — one-shot
 

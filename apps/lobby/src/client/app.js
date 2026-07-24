@@ -44,6 +44,7 @@ function renderHome() {
           </p>
           <div class="row" style="margin-top:1.25rem">
             <button id="create">Criar lobby</button>
+            <button class="ghost" id="gotoLab">Abrir Lab</button>
             <button class="ghost" id="gotoScale">Scale report</button>
           </div>
           <div class="row" style="margin-top:1rem">
@@ -57,6 +58,9 @@ function renderHome() {
       </div>
     </div>`;
   document.getElementById("create").onclick = createRoom;
+  document.getElementById("gotoLab").onclick = () => {
+    location.href = "/lab";
+  };
   document.getElementById("gotoScale").onclick = () => {
     history.pushState({}, "", "/scale");
     state.view = "scale";

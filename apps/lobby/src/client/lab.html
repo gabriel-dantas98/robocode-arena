@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Robocode Arena · Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;700;800&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/client/styles.css" />
+    <link rel="stylesheet" href="/client/lab.css" />
+  </head>
+  <body class="lab-body">
+    <div class="grain" aria-hidden="true"></div>
+    <header class="lab-top">
+      <a class="lab-brand" href="/">Robocode <span>Arena</span> · Lab</a>
+      <a class="lab-workshop" href="/">Workshop →</a>
+    </header>
+    <main class="lab-grid">
+      <section class="lab-editor-pane">
+        <div class="lab-toolbar">
+          <label>
+            Lang
+            <select id="lang">
+              <option value="ts">TypeScript</option>
+              <option value="java">Java</option>
+              <option value="python">Python</option>
+            </select>
+          </label>
+          <label>
+            Diff
+            <select id="difficulty">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+            </select>
+          </label>
+          <label>
+            Bot
+            <input id="botName" type="text" value="LabBot" maxlength="32" />
+          </label>
+          <button type="button" class="ghost" id="btnOpen" hidden>Abrir</button>
+          <button type="button" class="ghost" id="btnSave" hidden>Salvar</button>
+          <button type="button" id="btnDeploy">Deploy</button>
+        </div>
+        <div id="monaco" class="lab-monaco"></div>
+        <pre id="labError" class="lab-error" hidden></pre>
+      </section>
+      <section class="lab-arena-pane">
+        <div class="lab-hud">
+          <span id="hudText">idle</span>
+          <span id="hudStatus" class="lab-status">idle</span>
+        </div>
+        <canvas id="arena" width="720" height="540"></canvas>
+        <pre id="labResults" class="lab-results" hidden></pre>
+      </section>
+    </main>
+    <script type="module" src="/client/lab.js"></script>
+  </body>
+</html>

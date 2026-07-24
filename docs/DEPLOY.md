@@ -120,3 +120,9 @@ Dá pra fazer com volume compartilhado / object storage + sync, mas é overkill 
 ## O que não vai pro cloud “fácil”
 
 Matriz 200–500 bots: precisa de máquina dedicada. Documentado em `docs/SCALE.md` (cliff ~200 neste Mac 16GB).
+
+## Lab IDE (`/lab`)
+
+Superfície solo (Monaco + Deploy) documentada em `docs/superpowers/specs/2026-07-24-lab-ide-design.md`.
+
+Imagem Docker: **JDK 21** + `pip install robocode-tank-royale` (não só JRE).

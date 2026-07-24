@@ -6,12 +6,23 @@ import { mkdirSync, existsSync } from "fs";
 import { join, resolve } from "path";
 import { RoomStore } from "./rooms";
 import { extractAndValidateZipAsync } from "./zip";
+import {
+  deployLab,
+  loadTemplate,
+  sweepOldLabSessions,
+  type LabDifficulty,
+  type LabLang,
+} from "./lab";
 import type { PublicRoom } from "../shared/types";
 
 const ROOT = resolve(import.meta.dir, "../../../..");
 const UPLOADS = join(ROOT, "data/uploads");
+const LAB_ROOT = join(ROOT, "data/lab");
 const DIST = join(import.meta.dir, "../../dist");
 mkdirSync(UPLOADS, { recursive: true });
+mkdirSync(LAB_ROOT, { recursive: true });
+sweepOldLabSessions(LAB_ROOT);
+setInterval(() => sweepOldLabSessions(LAB_ROOT), 15 * 60_000);
 
 const PORT = Number(process.env.PORT || process.env.LOBBY_PORT || 7610);
 const ENGINE_URL = process.env.ENGINE_URL || "http://127.0.0.1:7601";
@@ -234,6 +245,77 @@ app.get("/api/battles/:id/proxy-ws-info", (c) => {
   });
 });
 
+app.get("/api/lab/templates/:lang", (c) => {
+  try {
+    const lang = c.req.param("lang") as LabLang;
+    if (!["ts", "java", "python"].includes(lang)) {
+      return c.json({ error: "lang must be ts|java|python" }, 400);
+    }
+    return c.json(loadTemplate(lang));
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 404);
+  }
+});
+
+app.post("/api/lab/deploy", async (c) => {
+  try {
+    const body = await c.req.json<{
+      lang?: LabLang;
+      botName?: string;
+      source?: string;
+      difficulty?: LabDifficulty;
+    }>();
+    const lang = body.lang;
+    const difficulty = body.difficulty;
+    if (!lang || !["ts", "java", "python"].includes(lang)) {
+      return c.json({ error: "lang must be ts|java|python" }, 400);
+    }
+    if (!difficulty || !["easy", "medium", "hard"].includes(difficulty)) {
+      return c.json({ error: "difficulty must be easy|medium|hard" }, 400);
+    }
+    if (!body.botName || typeof body.source !== "string") {
+      return c.json({ error: "botName and source required" }, 400);
+    }
+    const ip =
+      c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+      c.req.header("x-real-ip") ||
+      "local";
+    const result = await deployLab({
+      lang,
+      botName: body.botName,
+      source: body.source,
+      difficulty,
+      engineUrl: ENGINE_URL,
+      labRoot: LAB_ROOT,
+      clientIp: ip,
+    });
+    return c.json(result);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg === "BUSY") {
+      return c.json({ error: "Battle em andamento, espera" }, 409);
+    }
+    if (msg === "RATE_LIMIT") {
+      return c.json({ error: "Rate limit — max 6 deploys/min" }, 429);
+    }
+    return c.json({ error: msg }, 400);
+  }
+});
+
+app.get("/api/lab/battles/:id", async (c) => {
+  try {
+    const id = c.req.param("id");
+    const r = await fetch(`${ENGINE_URL}/battles/${id}`);
+    const text = await r.text();
+    return new Response(text, {
+      status: r.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
+  }
+});
+
 app.get("/api/scale/results", async (c) => {
   const path = join(ROOT, "data/scale-results/matrix.json");
   if (!existsSync(path)) return c.json({ results: [] });
@@ -273,6 +355,11 @@ app.get("/r/:code", async (c) => {
 
 app.get("/scale", async (c) => {
   const html = await Bun.file(join(CLIENT, "index.html")).text();
+  return c.html(html);
+});
+
+app.get("/lab", async (c) => {
+  const html = await Bun.file(join(CLIENT, "lab.html")).text();
   return c.html(html);
 });
 

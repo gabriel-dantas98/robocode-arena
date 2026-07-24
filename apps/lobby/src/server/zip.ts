@@ -132,18 +132,23 @@ export function ensureBootAssets(
     );
   }
 
-  if (lang === "java" && !existsSync(shPath)) {
+  if (lang === "java") {
     const libJar = `${ROOT}/bots/lib/robocode-tankroyale-bot-api-1.0.2.jar`;
-    const entry = existsSync(join(botDir, `${botName}.jar`))
-      ? `-jar ${botName}.jar`
-      : `-cp "${libJar}:." ${botName}.java`;
-    writeFileSync(
-      shPath,
-      `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\nexec java ${entry}\n`,
-    );
+    if (existsSync(join(botDir, `${botName}.jar`))) {
+      writeFileSync(
+        shPath,
+        `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\nexec java -jar "${botName}.jar"\n`,
+      );
+    } else {
+      // Always rewrite so lab/workshop .java bots compile with the shared API jar.
+      writeFileSync(
+        shPath,
+        `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\njavac -cp "${libJar}" "${botName}.java"\nexec java -cp "${libJar}:." "${botName}"\n`,
+      );
+    }
   }
 
-  if (lang === "python" && !existsSync(shPath)) {
+  if (lang === "python") {
     writeFileSync(
       shPath,
       `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\nexec python3 "${botName}.py"\n`,

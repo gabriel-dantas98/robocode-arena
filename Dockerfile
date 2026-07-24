@@ -20,12 +20,13 @@ COPY bots/package.json ./bots/
 RUN cd /src/bots && bun install \
   && cd /src/apps/lobby && bun install
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:21-jdk-jammy
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates python3 \
+      curl ca-certificates python3 python3-pip python3-venv \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g tsx \
+    && pip3 install --break-system-packages "robocode-tank-royale==1.0.2" \
     && rm -rf /var/lib/apt/lists/*
 
 # Bun for lobby
@@ -40,7 +41,7 @@ COPY bots /app/bots
 COPY scripts /app/scripts
 COPY package.json /app/package.json
 
-RUN mkdir -p /app/data/uploads /app/data/scale-results \
+RUN mkdir -p /app/data/uploads /app/data/lab /app/data/scale-results \
   && chmod +x /app/scripts/docker-entrypoint.sh
 
 ENV JAVA_HOME=/opt/java/openjdk

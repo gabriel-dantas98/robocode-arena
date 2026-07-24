@@ -1,0 +1,10 @@
+{
+  "name": "Scout1",
+  "version": "1.0",
+  "authors": ["robocode-arena"],
+  "description": "Medium scout",
+  "homepage": "",
+  "countryCodes": ["br"],
+  "platform": "Node.js",
+  "programmingLang": "TypeScript"
+}

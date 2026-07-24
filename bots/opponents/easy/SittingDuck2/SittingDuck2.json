@@ -1,0 +1,10 @@
+{
+  "name": "SittingDuck2",
+  "version": "1.0",
+  "authors": ["robocode-arena"],
+  "description": "Easy sitting duck",
+  "homepage": "",
+  "countryCodes": ["br"],
+  "platform": "Node.js",
+  "programmingLang": "TypeScript"
+}
