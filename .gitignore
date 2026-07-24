@@ -15,3 +15,6 @@ apps/engine/.gradle/
 .env.*
 !.env.example
 data/lab/
+bots/opponents/**/node_modules
+bots/opponents/**/package.json
+bots/opponents/**/*.sh
