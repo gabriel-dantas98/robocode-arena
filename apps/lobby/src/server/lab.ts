@@ -219,7 +219,12 @@ export async function deployLab(opts: {
     const res = await fetch(`${opts.engineUrl}/battles`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ botPaths, rounds: 3 }),
+      body: JSON.stringify({
+        botPaths,
+        // Lab is for watching/learning — slower turns + fewer rounds.
+        rounds: 2,
+        turnTimeoutMicros: 120_000, // ~8 TPS (default ~30ms is too fast to follow)
+      }),
     });
     if (!res.ok) {
       labBusy = false;

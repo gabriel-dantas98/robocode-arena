@@ -59,8 +59,18 @@
           <span id="hudText">idle</span>
           <span id="hudStatus" class="lab-status">idle</span>
         </div>
-        <canvas id="arena" width="720" height="540"></canvas>
-        <pre id="labResults" class="lab-results" hidden></pre>
+        <div class="lab-stage">
+          <canvas id="arena" width="720" height="540"></canvas>
+          <aside id="labLiveBoard" class="lab-live-board" hidden></aside>
+          <div id="labWinner" class="lab-winner" hidden></div>
+        </div>
+        <section id="labResultsPanel" class="lab-results-panel" hidden>
+          <header class="lab-results-head">
+            <h2>Placar</h2>
+            <p id="labResultsSub" class="muted"></p>
+          </header>
+          <ol id="labResults" class="lab-results-list"></ol>
+        </section>
       </section>
     </main>
     <script type="module" src="/client/lab.js"></script>

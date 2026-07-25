@@ -30,14 +30,16 @@ test("lab playstyle deploy — Tracker vs Easy ends", async ({ browser }, testIn
       async () => {
         const st = (await page.locator("#hudStatus").innerText()).toUpperCase();
         const hud = (await page.locator("#hudText").innerText()).toUpperCase();
-        const results = await page.locator("#labResults").isVisible();
-        return `${st}|${hud}|${results ? "RESULTS" : ""}`;
+        const results = await page.locator("#labResultsPanel").isVisible();
+        const winner = await page.locator("#labWinner").isVisible();
+        return `${st}|${hud}|${results ? "RESULTS" : ""}|${winner ? "WINNER" : ""}`;
       },
       { timeout: 240_000 },
     )
-    .toMatch(/ENDED|RESULTS/i);
+    .toMatch(/ENDED|RESULTS|WINNER/i);
 
-  await expect(page.locator("#labResults")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator("#labResultsPanel")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator("#labResults li").first()).toBeVisible();
   await page.waitForTimeout(1500);
   await ctx.close();
 });

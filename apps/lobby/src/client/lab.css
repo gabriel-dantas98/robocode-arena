@@ -107,6 +107,146 @@
   border: 1px solid var(--panel-edge);
   border-radius: 8px;
   background: #070b10;
+  display: block;
+}
+
+.lab-stage {
+  position: relative;
+}
+
+.lab-live-board {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  min-width: 150px;
+  padding: 0.55rem 0.7rem;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  z-index: 2;
+}
+
+.lab-live-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+}
+
+.lab-live-row.is-you {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.lab-winner {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(4, 8, 12, 0.72);
+  border-radius: 8px;
+  z-index: 3;
+  text-align: center;
+  padding: 1.5rem;
+  animation: labWinnerIn 0.35s ease-out;
+}
+
+.lab-winner strong {
+  display: block;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 800;
+  color: var(--accent);
+  margin-top: 0.35rem;
+}
+
+.lab-winner .lab-winner-kicker {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.lab-winner .lab-winner-score {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85rem;
+}
+
+@keyframes labWinnerIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.lab-results-panel {
+  margin-top: 0.85rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(24, 34, 46, 0.95), rgba(14, 20, 28, 0.98));
+}
+
+.lab-results-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.lab-results-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lab-results-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lab-results-list li {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.28);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.lab-results-list li.is-winner {
+  border: 1px solid rgba(240, 162, 2, 0.45);
+  background: rgba(240, 162, 2, 0.1);
+}
+
+.lab-results-list .rank {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.lab-error {
+  margin: 0.65rem 0 0;
+  padding: 0.75rem;
+  background: #120e0c;
+  border: 1px solid #5a2a1a;
+  border-radius: 6px;
+  color: #ffb4a2;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  max-height: 10rem;
+  overflow: auto;
 }
 
 .lab-hud {
@@ -124,27 +264,6 @@
   letter-spacing: 0.08em;
   font-weight: 700;
   color: var(--accent);
-}
-
-.lab-error,
-.lab-results {
-  margin: 0.65rem 0 0;
-  padding: 0.75rem;
-  background: #120e0c;
-  border: 1px solid #5a2a1a;
-  border-radius: 6px;
-  color: #ffb4a2;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 0.75rem;
-  white-space: pre-wrap;
-  max-height: 10rem;
-  overflow: auto;
-}
-
-.lab-results {
-  border-color: var(--panel-edge);
-  background: #0c1218;
-  color: var(--ink);
 }
 
 @media (max-width: 900px) {

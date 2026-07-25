@@ -38,14 +38,14 @@ const deadline = Date.now() + 240_000;
 while (Date.now() < deadline) {
   const st = (await page.locator("#hudStatus").innerText()).toUpperCase();
   const hud = (await page.locator("#hudText").innerText()).toLowerCase();
-  const resultsVisible = await page.locator("#labResults").isVisible();
+  const resultsVisible = await page.locator("#labResultsPanel").isVisible();
   console.log("status", st, "hud", hud, "results", resultsVisible);
   if (st.includes("ENDED") || st.includes("FAILED") || resultsVisible || hud.includes("ended"))
     break;
   await page.waitForTimeout(2000);
 }
 const final = (await page.locator("#hudStatus").innerText()).toUpperCase();
-const resultsVisible = await page.locator("#labResults").isVisible();
+const resultsVisible = await page.locator("#labResultsPanel").isVisible();
 if (!final.includes("ENDED") && !resultsVisible) {
   throw new Error(`lab battle did not end: ${final}`);
 }

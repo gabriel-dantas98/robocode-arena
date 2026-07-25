@@ -279,12 +279,109 @@ async function connectBattle(battleId) {
     const msg = JSON.parse(ev.data);
     if (msg.type === "tick") {
       drawArena(msg);
+      updateLiveBoard(msg);
       setStatus(
         `R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots`,
         null,
       );
     }
   };
+}
+
+function botLabel(index) {
+  if (index === 0) return el("botName").value.trim() || "Você";
+  return `Opp${index}`;
+}
+
+function updateLiveBoard(msg) {
+  const board = el("labLiveBoard");
+  if (!board) return;
+  const bots = [...(msg.bots || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
+  if (!bots.length) {
+    board.hidden = true;
+    return;
+  }
+  board.hidden = false;
+  board.innerHTML = bots
+    .map((b, i) => {
+      const energy = Math.max(0, Math.round(b.energy ?? 0));
+      const you = i === 0 ? " is-you" : "";
+      return `<div class="lab-live-row${you}"><span>${escapeHtml(botLabel(i))}</span><span>${energy} hp</span></div>`;
+    })
+    .join("");
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function clearResultsUi() {
+  const panel = el("labResultsPanel");
+  const winner = el("labWinner");
+  const live = el("labLiveBoard");
+  if (panel) panel.hidden = true;
+  if (winner) {
+    winner.hidden = true;
+    winner.innerHTML = "";
+  }
+  if (live) {
+    live.hidden = true;
+    live.innerHTML = "";
+  }
+  const list = el("labResults");
+  if (list) list.innerHTML = "";
+}
+
+function showResults(results) {
+  const panel = el("labResultsPanel");
+  const list = el("labResults");
+  const sub = el("labResultsSub");
+  const winner = el("labWinner");
+  if (!panel || !list || !results?.length) return;
+
+  const ranked = [...results].sort(
+    (a, b) => (a.rank ?? 99) - (b.rank ?? 99),
+  );
+  const top = ranked[0];
+  const youName = el("botName").value.trim() || "Starter";
+
+  list.innerHTML = ranked
+    .map((row, i) => {
+      const rank = row.rank ?? i + 1;
+      const isWin = rank === 1;
+      const isYou =
+        String(row.name || "").toLowerCase() === youName.toLowerCase();
+      const label = isYou ? `${row.name} (você)` : row.name;
+      return `<li class="${isWin ? "is-winner" : ""}">
+        <span class="rank">#${rank}</span>
+        <span>${escapeHtml(label)}</span>
+        <span>${row.totalScore ?? "?"} pts</span>
+      </li>`;
+    })
+    .join("");
+
+  if (sub) {
+    sub.textContent = top
+      ? `Vencedor: ${top.name} · ${top.totalScore ?? "?"} pts`
+      : "";
+  }
+
+  if (winner && top) {
+    winner.hidden = false;
+    winner.innerHTML = `
+      <div>
+        <div class="lab-winner-kicker">Vencedor</div>
+        <strong>${escapeHtml(top.name)}</strong>
+        <div class="lab-winner-score">${top.totalScore ?? "?"} pts · survival ${top.survival ?? "?"}</div>
+      </div>`;
+  }
+
+  panel.hidden = false;
+  panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function stopPoll() {
@@ -306,16 +403,7 @@ function startPoll(battleId) {
         state.deploying = false;
         el("btnDeploy").disabled = false;
         if (st === "FAILED") showErr(snap.error || "Battle FAILED");
-        if (snap.results?.length) {
-          const box = el("labResults");
-          box.hidden = false;
-          box.textContent = snap.results
-            .map(
-              (row, i) =>
-                `#${row.rank ?? i + 1} ${row.name}  score=${row.totalScore ?? "?"}  surv=${row.survival ?? "?"}`,
-            )
-            .join("\n");
-        }
+        if (snap.results?.length) showResults(snap.results);
         setStatus(st === "ENDED" ? "ended" : st.toLowerCase(), st);
       }
     } catch {
@@ -327,7 +415,7 @@ function startPoll(battleId) {
 async function deploy() {
   if (state.deploying || !state.editor) return;
   showErr("");
-  el("labResults").hidden = true;
+  clearResultsUi();
   const botName = el("botName").value.trim() || "Starter";
   const body = {
     lang: state.lang,
