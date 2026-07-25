@@ -17,3 +17,4 @@ apps/engine/.gradle/
 data/lab/
 vendor/tank-royale-viewer/node_modules/
 vendor/tank-royale-viewer/dist/
+vendor/
