@@ -1,4 +1,11 @@
 import { drawTank } from "./tanks.js";
+import {
+  drawBullets,
+  drawBotSensors,
+  playBattleIntro,
+  lerpTicks,
+  easeInOut,
+} from "./arena-fx.js";
 
 const MONACO_VER = "0.52.2";
 const EXT = { ts: ".ts", java: ".java", python: ".py" };
@@ -9,6 +16,9 @@ const DIFF_COLORS = {
   hard: ["#ff5d5d", "#e04545", "#c23030"],
 };
 const PLAYER_COLOR = "#3de0ff";
+const LIBRARY_MAX = 20;
+/** Keyframe spacing — rAF interpolates between ticks for fluid motion. */
+const PACE_MS = { cinema: 220, watch: 140, normal: 55 };
 
 const state = {
   editor: null,
@@ -21,6 +31,20 @@ const state = {
   battleId: null,
   pollTimer: null,
   fileHandle: null,
+  introForBattle: null,
+  introHandle: null,
+  introActive: false,
+  pendingTick: null,
+  pendingResults: null,
+  tickQueue: [],
+  playbackTimer: null,
+  playbackRaf: 0,
+  playbackMs: 220,
+  playFrom: null,
+  playTo: null,
+  playStart: 0,
+  cancelIntro: null,
+  draftBadgeTimer: 0,
 };
 
 const el = (id) => document.getElementById(id);
@@ -29,12 +53,23 @@ function draftKey(lang) {
   return `lab:draft:${lang}`;
 }
 
+function libraryKey(lang) {
+  return `lab:library:${lang}`;
+}
+
 function loadDraft(lang) {
   try {
     return JSON.parse(localStorage.getItem(draftKey(lang)) || "null");
   } catch {
     return null;
   }
+}
+
+function setDraftBadge(text, isDirty) {
+  const b = el("draftBadge");
+  if (!b) return;
+  b.textContent = text;
+  b.classList.toggle("is-dirty", !!isDirty);
 }
 
 function saveDraft() {
@@ -46,8 +81,122 @@ function saveDraft() {
       source: state.editor.getValue(),
       difficulty: el("difficulty").value,
       exampleId: state.exampleId,
+      pace: el("pace")?.value || "cinema",
+      updatedAt: Date.now(),
     }),
   );
+  clearTimeout(state.draftBadgeTimer);
+  state.draftBadgeTimer = window.setTimeout(() => {
+    setDraftBadge(state.dirty ? "autosave ✓" : "salvo", state.dirty);
+  }, 250);
+}
+
+function loadLibrary(lang) {
+  try {
+    const list = JSON.parse(localStorage.getItem(libraryKey(lang)) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistLibrary(lang, list) {
+  localStorage.setItem(libraryKey(lang), JSON.stringify(list.slice(0, LIBRARY_MAX)));
+}
+
+function refreshLibrarySelect() {
+  const sel = el("librarySelect");
+  if (!sel) return;
+  const prev = sel.value;
+  const list = loadLibrary(state.lang);
+  sel.innerHTML = `<option value="">— autosave atual —</option>`;
+  for (const item of list) {
+    const opt = document.createElement("option");
+    opt.value = item.id;
+    const when = item.savedAt
+      ? new Date(item.savedAt).toLocaleString("pt-BR", {
+          day: "2-digit",
+          month: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "";
+    opt.textContent = `${item.name}${when ? ` · ${when}` : ""}`;
+    sel.appendChild(opt);
+  }
+  if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+  syncLibraryButtons();
+}
+
+function syncLibraryButtons() {
+  const id = el("librarySelect")?.value || "";
+  const has = !!id;
+  const loadBtn = el("btnLoadDraft");
+  const delBtn = el("btnDeleteDraft");
+  if (loadBtn) loadBtn.disabled = !has;
+  if (delBtn) delBtn.disabled = !has;
+}
+
+function saveNamedDraft() {
+  if (!state.editor) return;
+  const suggested = el("botName").value.trim() || "MeuBot";
+  const name = prompt("Nome do rascunho:", suggested);
+  if (!name?.trim()) return;
+  const list = loadLibrary(state.lang).filter(
+    (d) => d.name.toLowerCase() !== name.trim().toLowerCase(),
+  );
+  list.unshift({
+    id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    name: name.trim().slice(0, 48),
+    botName: el("botName").value.trim() || "Starter",
+    source: state.editor.getValue(),
+    exampleId: state.exampleId,
+    difficulty: el("difficulty").value,
+    savedAt: Date.now(),
+  });
+  persistLibrary(state.lang, list);
+  refreshLibrarySelect();
+  el("librarySelect").value = list[0].id;
+  syncLibraryButtons();
+  setDraftBadge("biblioteca ✓", false);
+  showErr("");
+}
+
+function loadNamedDraft() {
+  const id = el("librarySelect")?.value;
+  if (!id || !state.editor) return;
+  const item = loadLibrary(state.lang).find((d) => d.id === id);
+  if (!item) return;
+  if (state.dirty) {
+    const ok = confirm("Descartar mudanças não tipadas no playstyle e carregar rascunho?");
+    if (!ok) return;
+  }
+  el("botName").value = item.botName || "Starter";
+  if (item.difficulty) el("difficulty").value = item.difficulty;
+  if (item.exampleId) {
+    state.exampleId = item.exampleId;
+    el("example").value = item.exampleId;
+    const meta = state.examples.find((e) => e.id === item.exampleId);
+    if (meta) setPlaystyleInfo(meta);
+  }
+  state.editor.setValue(item.source || "");
+  state.dirty = false;
+  saveDraft();
+  setDraftBadge("carregado", false);
+}
+
+function deleteNamedDraft() {
+  const id = el("librarySelect")?.value;
+  if (!id) return;
+  const list = loadLibrary(state.lang);
+  const item = list.find((d) => d.id === id);
+  if (!item) return;
+  if (!confirm(`Apagar rascunho “${item.name}”?`)) return;
+  persistLibrary(
+    state.lang,
+    list.filter((d) => d.id !== id),
+  );
+  refreshLibrarySelect();
 }
 
 function showErr(msg) {
@@ -120,14 +269,30 @@ function fillExampleSelect() {
     const opt = document.createElement("option");
     opt.value = ex.id;
     opt.textContent = ex.title;
+    opt.title = ex.blurb || "";
     sel.appendChild(opt);
   }
   sel.value = state.exampleId;
 }
 
-function setBlurb(text) {
-  const b = el("exampleBlurb");
-  if (b) b.textContent = text || "";
+function setPlaystyleInfo(meta) {
+  const card = el("playstyleCard");
+  const title = el("playstyleTitle");
+  const blurb = el("exampleBlurb");
+  const tactics = el("playstyleTactics");
+  if (!card || !title || !blurb) return;
+  if (!meta?.title && !meta?.blurb) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  title.textContent = meta.title || meta.botName || "";
+  blurb.textContent = meta.blurb || "";
+  if (tactics) {
+    tactics.innerHTML = (meta.tactics || [])
+      .map((t) => `<li>${escapeHtml(t)}</li>`)
+      .join("");
+  }
 }
 
 async function loadPlaystyle(id, { force = false } = {}) {
@@ -142,7 +307,7 @@ async function loadPlaystyle(id, { force = false } = {}) {
   el("example").value = id;
   const ex = await fetchExample(id, state.lang);
   el("botName").value = ex.botName;
-  setBlurb(ex.blurb);
+  setPlaystyleInfo(ex);
   if (state.editor) {
     window.monaco.editor.setModelLanguage(
       state.editor.getModel(),
@@ -172,8 +337,9 @@ async function setLang(lang, { force = false } = {}) {
     el("example").value = state.exampleId;
     el("botName").value = draft.botName || "Starter";
     if (draft.difficulty) el("difficulty").value = draft.difficulty;
+    if (draft.pace && el("pace")) el("pace").value = draft.pace;
     const meta = state.examples.find((e) => e.id === state.exampleId);
-    setBlurb(meta?.blurb || "");
+    setPlaystyleInfo(meta || {});
     if (state.editor) {
       window.monaco.editor.setModelLanguage(
         state.editor.getModel(),
@@ -230,7 +396,13 @@ function drawArena(msg) {
   const sorted = [...bots].sort((a, b) => (a.id || 0) - (b.id || 0));
   const diff = el("difficulty").value;
   const oppColors = DIFF_COLORS[diff] || DIFF_COLORS.medium;
-  const tankScale = Math.max(0.9, Math.min(1.6, s * 1.1));
+  const tankScale = Math.max(1.35, Math.min(2.2, s * 2.4));
+  const map = { pad, s, maxY };
+
+  // sensors under tanks
+  for (let i = 0; i < sorted.length; i++) {
+    drawBotSensors(ctx, sorted[i], map, { emphasize: i === 0 });
+  }
 
   for (let i = 0; i < sorted.length; i++) {
     const b = sorted[i];
@@ -262,10 +434,102 @@ function drawArena(msg) {
       y - 10,
     );
   }
+
+  drawBullets(ctx, msg.bullets, map);
+}
+
+function maybePlayIntro(msg) {
+  if (msg.type === "game_started" && state.introHandle?.skipToGo) {
+    state.introHandle.skipToGo();
+  }
+}
+
+function stopPlayback() {
+  if (state.playbackTimer != null) {
+    clearTimeout(state.playbackTimer);
+    state.playbackTimer = null;
+  }
+  if (state.playbackRaf) {
+    cancelAnimationFrame(state.playbackRaf);
+    state.playbackRaf = 0;
+  }
+  state.tickQueue = [];
+  state.playFrom = null;
+  state.playTo = null;
+  state.pendingResults = null;
+}
+
+function paintTick(msg) {
+  drawArena(msg);
+  updateLiveBoard(msg);
+  const nBullets = msg.bullets?.length || 0;
+  setStatus(
+    `R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots${nBullets ? ` · ${nBullets} ✦` : ""}`,
+    null,
+  );
+}
+
+function finishPlaybackIfIdle() {
+  if (state.tickQueue.length || state.playTo) return;
+  if (!state.pendingResults) return;
+  const results = state.pendingResults;
+  state.pendingResults = null;
+  showResults(results);
+  state.deploying = false;
+  el("btnDeploy").disabled = false;
+}
+
+function ensurePlaybackLoop() {
+  if (state.playbackRaf) return;
+  const loop = (now) => {
+    state.playbackRaf = requestAnimationFrame(loop);
+    if (state.introActive) return;
+
+    if (!state.playTo) {
+      if (!state.tickQueue.length) {
+        finishPlaybackIfIdle();
+        return;
+      }
+      state.playFrom = state.playFrom || state.tickQueue.shift();
+      state.playTo = state.tickQueue.shift() || state.playFrom;
+      state.playStart = now;
+    }
+
+    const dur = Math.max(40, state.playbackMs);
+    let u = (now - state.playStart) / dur;
+    if (u >= 1) {
+      paintTick(state.playTo);
+      state.playFrom = state.playTo;
+      if (state.tickQueue.length) {
+        state.playTo = state.tickQueue.shift();
+        state.playStart = now;
+      } else {
+        state.playTo = null;
+        finishPlaybackIfIdle();
+      }
+      return;
+    }
+    paintTick(lerpTicks(state.playFrom, state.playTo, easeInOut(u)));
+  };
+  state.playbackRaf = requestAnimationFrame(loop);
+}
+
+function kickPlayback() {
+  ensurePlaybackLoop();
+}
+
+function enqueueTick(msg) {
+  state.tickQueue.push(msg);
+  if (state.tickQueue.length > 2500) {
+    state.tickQueue = state.tickQueue.filter((_, i) => i % 2 === 1);
+  }
+  kickPlayback();
 }
 
 async function connectBattle(battleId) {
   if (state.battleWs) state.battleWs.close();
+  state.battleId = battleId;
+  stopPlayback();
   const info = await fetch(`/api/battles/${battleId}/proxy-ws-info`).then((r) =>
     r.json(),
   );
@@ -277,13 +541,13 @@ async function connectBattle(battleId) {
   state.battleWs = ws;
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
+    maybePlayIntro(msg);
     if (msg.type === "tick") {
-      drawArena(msg);
-      updateLiveBoard(msg);
-      setStatus(
-        `R${msg.round} · T${msg.turn} · ${msg.bots?.length || 0} bots`,
-        null,
-      );
+      if (!msg.bots?.length) return;
+      enqueueTick(msg);
+    }
+    if (msg.type === "snapshot" && msg.status === "BOOTING") {
+      setStatus("booting…", "BOOTING");
     }
   };
 }
@@ -400,10 +664,28 @@ function startPoll(battleId) {
       el("hudStatus").textContent = st;
       if (st === "ENDED" || st === "FAILED" || st === "STOPPED") {
         stopPoll();
-        state.deploying = false;
-        el("btnDeploy").disabled = false;
-        if (st === "FAILED") showErr(snap.error || "Battle FAILED");
-        if (snap.results?.length) showResults(snap.results);
+        el("hudStatus").textContent = st;
+        if (st === "FAILED") {
+          showErr(snap.error || "Battle FAILED");
+          state.deploying = false;
+          el("btnDeploy").disabled = false;
+          setStatus("failed", st);
+          return;
+        }
+        if (snap.results?.length) {
+          // Wait for cinema playback queue to drain before placar.
+          state.pendingResults = snap.results;
+          kickPlayback();
+          if (!state.tickQueue.length && !state.introActive) {
+            showResults(snap.results);
+            state.pendingResults = null;
+            state.deploying = false;
+            el("btnDeploy").disabled = false;
+          }
+        } else {
+          state.deploying = false;
+          el("btnDeploy").disabled = false;
+        }
         setStatus(st === "ENDED" ? "ended" : st.toLowerCase(), st);
       }
     } catch {
@@ -422,11 +704,25 @@ async function deploy() {
     botName,
     source: state.editor.getValue(),
     difficulty: el("difficulty").value,
+    pace: el("pace")?.value || "cinema",
   };
   state.deploying = true;
   el("btnDeploy").disabled = true;
   setStatus("deploying…", "");
   saveDraft();
+
+  // Countdown during engine warmup — playback starts after GO.
+  state.cancelIntro?.();
+  stopPlayback();
+  state.playbackMs = PACE_MS[el("pace")?.value] || PACE_MS.cinema;
+  state.introActive = true;
+  state.introHandle = playBattleIntro(el("labStage"), { round: 1, stepMs: 480 });
+  state.cancelIntro = () => state.introHandle?.cancel();
+  state.introHandle.done.then(() => {
+    state.introActive = false;
+    kickPlayback();
+  });
+
   try {
     const r = await fetch("/api/lab/deploy", {
       method: "POST",
@@ -440,6 +736,8 @@ async function deploy() {
     await connectBattle(data.battleId);
     startPoll(data.battleId);
   } catch (e) {
+    state.introHandle?.cancel();
+    state.introActive = false;
     showErr(e instanceof Error ? e.message : String(e));
     state.deploying = false;
     el("btnDeploy").disabled = false;
@@ -489,31 +787,47 @@ async function openFile() {
 }
 
 async function saveFile() {
-  if (!window.showSaveFilePicker || !state.editor) return;
-  try {
-    const ext = EXT[state.lang];
-    const suggested = `${el("botName").value.trim() || "Starter"}${ext}`;
-    const handle =
-      state.fileHandle ||
-      (await window.showSaveFilePicker({
-        suggestedName: suggested,
-        types: [
-          {
-            description: `${state.lang} bot`,
-            accept: { "text/plain": [ext] },
-          },
-        ],
-      }));
-    state.fileHandle = handle;
-    const writable = await handle.createWritable();
-    await writable.write(state.editor.getValue());
-    await writable.close();
-    state.dirty = false;
-    saveDraft();
-  } catch (e) {
-    if (e?.name === "AbortError") return;
-    showErr(e instanceof Error ? e.message : String(e));
+  if (!state.editor) return;
+  const ext = EXT[state.lang];
+  const suggested = `${el("botName").value.trim() || "Starter"}${ext}`;
+  const source = state.editor.getValue();
+
+  if (window.showSaveFilePicker) {
+    try {
+      const handle =
+        state.fileHandle ||
+        (await window.showSaveFilePicker({
+          suggestedName: suggested,
+          types: [
+            {
+              description: `${state.lang} bot`,
+              accept: { "text/plain": [ext] },
+            },
+          ],
+        }));
+      state.fileHandle = handle;
+      const writable = await handle.createWritable();
+      await writable.write(source);
+      await writable.close();
+      state.dirty = false;
+      saveDraft();
+      return;
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      showErr(e instanceof Error ? e.message : String(e));
+      return;
+    }
   }
+
+  // Fallback: download blob (Firefox / Safari / no FSA)
+  const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = suggested;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  state.dirty = false;
+  saveDraft();
 }
 
 async function boot() {
@@ -536,19 +850,43 @@ async function boot() {
   });
   state.editor.onDidChangeModelContent(() => {
     state.dirty = true;
+    setDraftBadge("editando…", true);
     saveDraft();
   });
 
   if (window.showOpenFilePicker) el("btnOpen").hidden = false;
-  if (window.showSaveFilePicker) el("btnSave").hidden = false;
+  // Always show Arquivo — FSA when available, otherwise download fallback
+  el("btnSave").hidden = false;
 
-  el("lang").onchange = () => setLang(el("lang").value);
+  el("lang").onchange = async () => {
+    await setLang(el("lang").value);
+    refreshLibrarySelect();
+  };
   el("example").onchange = () => loadPlaystyle(el("example").value);
   el("difficulty").onchange = () => saveDraft();
+  el("pace").onchange = () => saveDraft();
   el("botName").onchange = () => saveDraft();
   el("btnDeploy").onclick = () => deploy();
   el("btnOpen").onclick = () => openFile();
   el("btnSave").onclick = () => saveFile();
+  el("btnSaveAs").onclick = () => saveNamedDraft();
+  el("librarySelect").onchange = () => syncLibraryButtons();
+  el("btnLoadDraft").onclick = () => loadNamedDraft();
+  el("btnDeleteDraft").onclick = () => deleteNamedDraft();
+  el("btnDocs").onclick = () => {
+    const panel = el("labDocs");
+    const btn = el("btnDocs");
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  };
+  el("btnShortcuts").onclick = () => {
+    const panel = el("labShortcuts");
+    const btn = el("btnShortcuts");
+    const open = panel.hidden;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+  };
 
   window.addEventListener("keydown", (ev) => {
     const mod = ev.metaKey || ev.ctrlKey;
@@ -562,9 +900,12 @@ async function boot() {
     }
   });
 
+  refreshLibrarySelect();
   const draft = loadDraft("ts");
   if (draft?.exampleId) state.exampleId = draft.exampleId;
   await setLang("ts", { force: true });
+  refreshLibrarySelect();
+  setDraftBadge("salvo", false);
   setStatus("idle", "");
 }
 

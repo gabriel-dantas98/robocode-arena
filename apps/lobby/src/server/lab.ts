@@ -14,6 +14,46 @@ import { ensureBootAssets, type BotLang } from "./zip";
 
 export type LabLang = "ts" | "java" | "python";
 export type LabDifficulty = "easy" | "medium" | "hard";
+/** Spectator pacing — client tick playback (engine BattleRunner is single-threaded). */
+export type LabPace = "cinema" | "watch" | "normal";
+
+/** Inspired by official TPS docs + tank-royale-viewer broadcast watching. */
+export const LAB_PACE = {
+  cinema: {
+    turnTimeoutMicros: 50_000,
+    playbackMs: 220,
+    rounds: 5,
+    gunCoolingRate: 0.06,
+    maxInactivityTurns: 900,
+    startDelayMs: 2200,
+  },
+  watch: {
+    turnTimeoutMicros: 50_000,
+    playbackMs: 140,
+    rounds: 5,
+    gunCoolingRate: 0.08,
+    maxInactivityTurns: 700,
+    startDelayMs: 2200,
+  },
+  normal: {
+    turnTimeoutMicros: 40_000,
+    playbackMs: 55,
+    rounds: 3,
+    gunCoolingRate: 0.1,
+    maxInactivityTurns: 450,
+    startDelayMs: 1500,
+  },
+} as const satisfies Record<
+  LabPace,
+  {
+    turnTimeoutMicros: number;
+    playbackMs: number;
+    rounds: number;
+    gunCoolingRate: number;
+    maxInactivityTurns: number;
+    startDelayMs: number;
+  }
+>;
 
 const EXT: Record<LabLang, string> = {
   ts: ".ts",
@@ -43,6 +83,7 @@ export type LabExampleMeta = {
   botName: string;
   title: string;
   blurb: string;
+  tactics?: string[];
 };
 
 export function listExamples(): LabExampleMeta[] {
@@ -62,6 +103,7 @@ export function loadExample(
   source: string;
   title: string;
   blurb: string;
+  tactics?: string[];
 } {
   const meta = listExamples().find((e) => e.id === id);
   if (!meta) throw new Error(`Unknown example: ${id}`);
@@ -76,6 +118,7 @@ export function loadExample(
     source: readFileSync(path, "utf8"),
     title: meta.title,
     blurb: meta.blurb,
+    tactics: meta.tactics,
   };
 }
 
@@ -186,6 +229,7 @@ export async function deployLab(opts: {
   botName: string;
   source: string;
   difficulty: LabDifficulty;
+  pace?: LabPace;
   engineUrl: string;
   labRoot: string;
   clientIp: string;
@@ -208,12 +252,14 @@ export async function deployLab(opts: {
   });
   const opponents = resolveOpponents(opts.difficulty);
   const botPaths = [player.botDir, ...opponents];
+  const pace = LAB_PACE[opts.pace && opts.pace in LAB_PACE ? opts.pace : "cinema"];
 
   labBusy = true;
   if (busyClearTimer) clearTimeout(busyClearTimer);
+  // Cinema 5 rounds @ 2 TPS can run several minutes
   busyClearTimer = setTimeout(() => {
     labBusy = false;
-  }, 180_000);
+  }, 12 * 60_000);
 
   try {
     const res = await fetch(`${opts.engineUrl}/battles`, {
@@ -221,9 +267,11 @@ export async function deployLab(opts: {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         botPaths,
-        // Lab is for watching/learning — slower turns + fewer rounds.
-        rounds: 2,
-        turnTimeoutMicros: 120_000, // ~8 TPS (default ~30ms is too fast to follow)
+        rounds: pace.rounds,
+        turnTimeoutMicros: pace.turnTimeoutMicros,
+        startDelayMs: pace.startDelayMs,
+        gunCoolingRate: pace.gunCoolingRate,
+        maxInactivityTurns: pace.maxInactivityTurns,
       }),
     });
     if (!res.ok) {
@@ -245,7 +293,7 @@ export async function deployLab(opts: {
 }
 
 async function watchBattleUntilDone(engineUrl: string, id: string) {
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 360; i++) {
     await Bun.sleep(2000);
     try {
       const r = await fetch(`${engineUrl}/battles/${id}`);

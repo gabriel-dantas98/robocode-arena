@@ -35,26 +35,26 @@ test("lobby happy path — 3 players ready → play → results", async ({
   for (const p of players) {
     const page = await ctx.newPage();
     await page.goto(`/r/${code}`);
-    await page.getByPlaceholder("Nick").fill(p.nick);
+    await page.getByPlaceholder("Seu nick").fill(p.nick);
     await page.locator("#color").fill(p.color);
-    await page.getByRole("button", { name: "Join" }).click();
+    await page.getByRole("button", { name: "Entrar" }).click();
     await expect(page.getByText("Seu tank")).toBeVisible();
     await page.locator("#zip").setInputFiles(path.join(zips, p.zip));
-    await page.getByRole("button", { name: "Upload zip" }).click();
+    await page.getByRole("button", { name: "Enviar zip" }).click();
     await expect
       .poll(async () => page.locator("body").innerText(), { timeout: 60_000 })
       .toMatch(/Bot:\s*\w+|AlphaBot|BravoBot|CharlieBot/i);
-    await page.getByRole("button", { name: "Ready" }).click();
-    await expect(page.getByRole("button", { name: "Unready" })).toBeVisible();
+    await page.getByRole("button", { name: "Pronto" }).click();
+    await expect(page.getByRole("button", { name: "Cancelar pronto" })).toBeVisible();
     pages.push(page);
   }
 
   for (const p of pages) await p.close();
 
-  await expect(owner.getByRole("button", { name: "Play" })).toBeEnabled({
+  await expect(owner.getByRole("button", { name: "Jogar" })).toBeEnabled({
     timeout: 30_000,
   });
-  await owner.getByRole("button", { name: "Play" }).click();
+  await owner.getByRole("button", { name: "Jogar" }).click();
   await owner.bringToFront();
 
   await expect(owner.locator("#arenaWrap")).toBeVisible({ timeout: 60_000 });
@@ -71,6 +71,6 @@ test("lobby happy path — 3 players ready → play → results", async ({
 test("scale report page renders", async ({ page }) => {
   await page.goto("/scale");
   await expect(
-    page.getByRole("heading", { name: "Scale report" }),
+    page.getByRole("heading", { name: "Relatório de escala" }),
   ).toBeVisible();
 });

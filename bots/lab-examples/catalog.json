@@ -1,7 +1,37 @@
 [
-  { "id": "starter", "botName": "Starter", "title": "Starter", "blurb": "Scan + move + fire — baseline" },
-  { "id": "rammer", "botName": "Rammer", "title": "Rammer", "blurb": "Investe no alvo scaneado" },
-  { "id": "spinner", "botName": "Spinner", "title": "Spinner", "blurb": "Gira e dispara em tudo" },
-  { "id": "tracker", "botName": "Tracker", "title": "Tracker", "blurb": "Mira o canhão no scan" },
-  { "id": "walls", "botName": "Walls", "title": "Walls", "blurb": "Corre pela borda da arena" }
+  {
+    "id": "starter",
+    "botName": "Starter",
+    "title": "Starter",
+    "blurb": "Baseline: gira o radar, anda um pouco e dispara quando vê alguém. Bom pra aprender o loop do bot e o editor.",
+    "tactics": ["radar girando", "movimento curto", "tiro no scan"]
+  },
+  {
+    "id": "rammer",
+    "botName": "Rammer",
+    "title": "Rammer",
+    "blurb": "Agressivo: quando o radar pega um inimigo, investe na direção dele e tenta colidir / pressionar de perto. Alto risco, alto contato.",
+    "tactics": ["charge no alvo", "pressão corpo a corpo", "pouca defesa"]
+  },
+  {
+    "id": "spinner",
+    "botName": "Spinner",
+    "title": "Spinner",
+    "blurb": "Spray: fica girando canhão/radar e atirando o tempo todo. Cobre a arena sem mirar fino — útil contra alvos lentos ou muitos bots.",
+    "tactics": ["giro contínuo", "tiro em leque", "baixa precisão"]
+  },
+  {
+    "id": "tracker",
+    "botName": "Tracker",
+    "title": "Tracker",
+    "blurb": "Mira: trava o canhão (e o radar) no inimigo scaneado e acompanha o movimento dele. Troca cobertura por precisão de tiro.",
+    "tactics": ["lock no scan", "canhão alinhado", "tiro direcionado"]
+  },
+  {
+    "id": "walls",
+    "botName": "Walls",
+    "title": "Walls",
+    "blurb": "Perímetro: corre colado nas paredes da arena, mudando de lado nos cantos. Evita o miolo e força inimigos a te pegar na borda.",
+    "tactics": ["hug wall", "cantos", "fuga do centro"]
+  }
 ]

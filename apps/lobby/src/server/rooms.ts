@@ -49,7 +49,8 @@ export class RoomStore {
         `Room full (max ${maxPlayers}). Override LOBBY_MAX_PLAYERS if needed.`,
       );
     }
-    const nick = input.nick.trim().slice(0, 24) || "Anon";
+    const nick = input.nick.trim().slice(0, 24);
+    if (!nick) throw new Error("Nick é obrigatório");
     const color = /^#[0-9a-fA-F]{6}$/.test(input.color)
       ? input.color
       : randomColor();
@@ -85,8 +86,11 @@ export class RoomStore {
     if (room.status !== "lobby" && patch.ready === undefined) {
       throw new Error("Cannot edit during battle");
     }
-    if (patch.nick !== undefined)
-      player.nick = patch.nick.trim().slice(0, 24) || player.nick;
+    if (patch.nick !== undefined) {
+      const n = patch.nick.trim().slice(0, 24);
+      if (!n) throw new Error("Nick é obrigatório");
+      player.nick = n;
+    }
     if (patch.color !== undefined && /^#[0-9a-fA-F]{6}$/.test(patch.color))
       player.color = patch.color;
     if (patch.chassis !== undefined)

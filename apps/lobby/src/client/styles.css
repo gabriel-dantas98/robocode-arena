@@ -193,6 +193,52 @@ input[type="color"] { width: 3rem; height: 2.4rem; padding: 0.2rem; }
   box-shadow: inset 0 0 80px rgba(61, 224, 255, 0.04);
 }
 #arena { display: block; width: 100%; height: auto; }
+
+.battle-intro {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: grid;
+  place-content: center;
+  gap: 0.35rem;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(61, 224, 255, 0.18), transparent 55%),
+    rgba(4, 8, 12, 0.55);
+  animation: intro-fade 0.35s ease-out;
+}
+.battle-intro-kicker {
+  margin: 0;
+  text-align: center;
+  font-family: Oxanium, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  font-size: 0.85rem;
+  color: var(--accent, #3de0ff);
+}
+.battle-intro-count {
+  margin: 0;
+  text-align: center;
+  font-family: Oxanium, sans-serif;
+  font-weight: 800;
+  font-size: clamp(3.5rem, 12vw, 6rem);
+  line-height: 1;
+  color: #e7eef6;
+  text-shadow: 0 0 40px rgba(61, 224, 255, 0.55);
+  animation: intro-pop 0.35s ease-out;
+}
+.battle-intro.is-go .battle-intro-count {
+  color: #ffe566;
+  letter-spacing: 0.08em;
+}
+@keyframes intro-pop {
+  from { transform: scale(1.35); opacity: 0.2; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes intro-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 .hud {
   position: absolute;
   left: 12px;
@@ -248,7 +294,34 @@ input[type="color"] { width: 3rem; height: 2.4rem; padding: 0.2rem; }
 }
 
 .results li { margin: 0.25rem 0; }
-.error { color: var(--bad); }
+.error { color: var(--bad); margin: 0.5rem 0 0; }
+input.is-invalid,
+input[aria-invalid="true"] {
+  outline: 1px solid var(--bad);
+  border-color: var(--bad);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.field input[type="text"],
+.field input:not([type]) {
+  min-width: 10rem;
+}
+.home-steps,
+.upload-steps {
+  margin: 0.85rem 0 0;
+  padding-left: 1.2rem;
+  max-width: 42ch;
+  line-height: 1.45;
+}
+.home-steps li + li,
+.upload-steps li + li {
+  margin-top: 0.2rem;
+}
 .scale-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 .scale-table th, .scale-table td {
   border-bottom: 1px solid var(--line);

@@ -17,8 +17,27 @@
     <div class="grain" aria-hidden="true"></div>
     <header class="lab-top">
       <a class="lab-brand" href="/">Robocode <span>Arena</span> · Lab</a>
-      <a class="lab-workshop" href="/">Workshop →</a>
+      <div class="lab-top-actions">
+        <button type="button" class="ghost" id="btnDocs" aria-expanded="false">Docs</button>
+        <a class="lab-workshop" href="/">Workshop →</a>
+      </div>
     </header>
+    <aside id="labDocs" class="lab-docs" hidden>
+      <h2>Mini guia · seu bot</h2>
+      <ol>
+        <li><strong>Loop:</strong> o bot reage a eventos (scan, hit, wall) e manda intenções (mover, girar, atirar).</li>
+        <li><strong>Radar / canhão / corpo</strong> giram separado — playstyles mostram padrões clássicos.</li>
+        <li><strong>Ritmo:</strong> engine em tempo real + playback com interpolação (tipo TPS do GUI). Cone ciano = radar do seu bot; linha âmbar = mira do canhão.</li>
+        <li><strong>Lab</strong> testa aqui; <strong>Workshop</strong> usa zip com pasta <code>BotName/</code> + <code>BotName.json</code>.</li>
+      </ol>
+      <p class="muted">Referência oficial (Tank Royale):</p>
+      <ul class="lab-docs-links">
+        <li><a href="https://robocode-dev.github.io/tank-royale/tutorial/getting-started.html" target="_blank" rel="noopener">Getting Started</a></li>
+        <li><a href="https://robocode-dev.github.io/tank-royale/tutorial/my-first-bot.html" target="_blank" rel="noopener">My First Bot</a></li>
+        <li><a href="https://robocode.dev/api/apis.html" target="_blank" rel="noopener">API docs (Java / .NET / Python / TS)</a></li>
+        <li><a href="https://robocode-dev.github.io/tank-royale/" target="_blank" rel="noopener">Docs home</a></li>
+      </ul>
+    </aside>
     <main class="lab-grid">
       <section class="lab-editor-pane">
         <div class="lab-toolbar">
@@ -31,15 +50,23 @@
             </select>
           </label>
           <label>
-            Playstyle
+            Estilo
             <select id="example"></select>
           </label>
           <label>
-            Diff
+            Dificuldade
             <select id="difficulty">
-              <option value="easy">Easy</option>
-              <option value="medium" selected>Medium</option>
-              <option value="hard">Hard</option>
+              <option value="easy">Fácil</option>
+              <option value="medium" selected>Média</option>
+              <option value="hard">Difícil</option>
+            </select>
+          </label>
+          <label>
+            Ritmo
+            <select id="pace" title="Playback: keyframes + interpolação 60fps">
+              <option value="cinema" selected>Cinema · fluido lento</option>
+              <option value="watch">Assistir</option>
+              <option value="normal">Normal</option>
             </select>
           </label>
           <label>
@@ -47,10 +74,32 @@
             <input id="botName" type="text" value="Starter" maxlength="32" />
           </label>
           <button type="button" class="ghost" id="btnOpen" hidden>Abrir</button>
-          <button type="button" class="ghost" id="btnSave" hidden>Salvar</button>
-          <button type="button" id="btnDeploy">Deploy</button>
+          <button type="button" class="ghost" id="btnSave" hidden>Arquivo</button>
+          <button type="button" class="ghost" id="btnSaveAs">Salvar como…</button>
+          <label class="lab-library-label">
+            Rascunhos
+            <select id="librarySelect" aria-label="Rascunhos salvos">
+              <option value="">— autosave —</option>
+            </select>
+          </label>
+          <button type="button" class="ghost" id="btnLoadDraft" disabled>Carregar</button>
+          <button type="button" class="ghost" id="btnDeleteDraft" disabled>Apagar</button>
+          <span id="draftBadge" class="lab-draft-badge" title="Autosave no localStorage">salvo</span>
+          <button type="button" id="btnDeploy" title="⌘/Ctrl+Enter">Testar <kbd class="lab-kbd">⌘↵</kbd></button>
+          <button type="button" class="ghost" id="btnShortcuts" title="Atalhos" aria-expanded="false">?</button>
         </div>
-        <p id="exampleBlurb" class="lab-blurb muted"></p>
+        <p id="labShortcuts" class="lab-shortcuts muted" hidden>
+          <kbd>⌘/Ctrl+Enter</kbd> testar ·
+          <kbd>⌘/Ctrl+S</kbd> salvar arquivo ·
+          autosave contínuo + <strong>Salvar como…</strong> na biblioteca
+        </p>
+        <aside id="playstyleCard" class="lab-playstyle" hidden>
+          <div class="lab-playstyle-head">
+            <strong id="playstyleTitle"></strong>
+            <ul id="playstyleTactics" class="lab-playstyle-tactics"></ul>
+          </div>
+          <p id="exampleBlurb" class="lab-blurb muted"></p>
+        </aside>
         <div id="monaco" class="lab-monaco"></div>
         <pre id="labError" class="lab-error" hidden></pre>
       </section>
@@ -59,7 +108,7 @@
           <span id="hudText">idle</span>
           <span id="hudStatus" class="lab-status">idle</span>
         </div>
-        <div class="lab-stage">
+        <div class="lab-stage" id="labStage">
           <canvas id="arena" width="720" height="540"></canvas>
           <aside id="labLiveBoard" class="lab-live-board" hidden></aside>
           <div id="labWinner" class="lab-winner" hidden></div>

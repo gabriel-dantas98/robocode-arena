@@ -34,10 +34,137 @@
   color: var(--accent);
 }
 
-.lab-blurb {
+.lab-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.lab-docs {
+  margin: 0 1.25rem 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--panel-edge);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  position: relative;
+  z-index: 2;
+  max-width: 72ch;
+}
+.lab-docs h2 {
   margin: 0 0 0.5rem;
-  padding: 0 0.15rem;
+  font-family: Oxanium, sans-serif;
+  font-size: 1rem;
+}
+.lab-docs ol {
+  margin: 0 0 0.65rem;
+  padding-left: 1.2rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.lab-docs-links {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  line-height: 1.55;
+}
+.lab-docs-links a {
+  color: var(--accent);
+}
+
+.lab-draft-badge {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--panel-edge);
+  color: var(--muted);
+  align-self: center;
+}
+.lab-draft-badge.is-dirty {
+  color: #f5c542;
+  border-color: rgba(245, 197, 66, 0.45);
+}
+
+.lab-library-label select {
+  min-width: 10rem;
+  max-width: 14rem;
+}
+
+.lab-blurb {
+  margin: 0;
+  padding: 0;
   font-size: 0.85rem;
+  line-height: 1.45;
+  max-width: 72ch;
+}
+
+.lab-playstyle {
+  display: block;
+  margin: 0 0 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(61, 224, 255, 0.06), transparent 55%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.lab-playstyle[hidden] {
+  display: none;
+}
+
+.lab-playstyle-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+  margin-bottom: 0.35rem;
+}
+
+.lab-playstyle-head strong {
+  font-family: Oxanium, sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+.lab-playstyle-tactics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lab-playstyle-tactics li {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--panel-edge);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.lab-kbd {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.7em;
+  opacity: 0.75;
+  margin-left: 0.25rem;
+}
+
+.lab-shortcuts {
+  margin: 0 0 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.lab-shortcuts kbd {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.85em;
 }
 
 .lab-grid {

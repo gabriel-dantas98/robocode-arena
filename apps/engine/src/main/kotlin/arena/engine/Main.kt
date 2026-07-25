@@ -37,6 +37,17 @@ data class StartBattleRequest(
     val arenaWidth: Int? = null,
     val arenaHeight: Int? = null,
     val turnTimeoutMicros: Int? = null,
+    /** Sleep before launching the battle so UIs can play a countdown during BOOTING. */
+    val startDelayMs: Int? = null,
+    /** Lower = slower gun heat recovery = longer, more watchable duels. */
+    val gunCoolingRate: Double? = null,
+    /** Extra turns before inactivity energy drain (spectator-friendly). */
+    val maxInactivityTurns: Int? = null,
+    /**
+     * Wall-clock delay after each turn (ms). Battle Runner does not pace by turnTimeout
+     * the way the GUI TPS slider does — this emulates low TPS for spectators.
+     */
+    val tickDelayMs: Int? = null,
 )
 
 enum class BattleStatus { BOOTING, RUNNING, ENDED, FAILED, STOPPED }
@@ -134,6 +145,14 @@ class BattleService(
                 session.update { it.copy(status = BattleStatus.BOOTING, bootExpected = req.botPaths.size) }
                 session.emitSync("boot_started") { put("expected", req.botPaths.size) }
 
+                val delayMs = (req.startDelayMs ?: 0).coerceIn(0, 10_000)
+                if (delayMs > 0) {
+                    session.emitSync("warmup") {
+                        put("ms", delayMs)
+                    }
+                    Thread.sleep(delayMs.toLong())
+                }
+
                 val bots = req.botPaths.map { BotEntry.of(Path(it)) }
                 val side = arenaSide(req.botPaths.size, req.arenaWidth, req.arenaHeight)
                 val setup = BattleSetup.custom {
@@ -143,6 +162,12 @@ class BattleService(
                     minNumberOfParticipants = 2
                     if (req.turnTimeoutMicros != null) {
                         turnTimeoutMicros = req.turnTimeoutMicros
+                    }
+                    if (req.gunCoolingRate != null) {
+                        gunCoolingRate = req.gunCoolingRate
+                    }
+                    if (req.maxInactivityTurns != null) {
+                        maxInactivityTurns = req.maxInactivityTurns
                     }
                 }
 
@@ -182,8 +207,11 @@ class BattleService(
                             session.update {
                                 it.copy(status = BattleStatus.RUNNING, turnNumber = turn, botsAlive = alive)
                             }
-                            // sample ticks for UI — every 3rd turn keeps WS/CPU sane at scale
-                            if (turn % 3 == 0 || alive <= 2) {
+                            // sample ticks for UI — every turn for small arenas (lab);
+                            // every 3rd at scale; always when bullets fly
+                            val hasBullets = tick.bulletStates.isNotEmpty()
+                            val smallFight = tick.botStates.size <= 12
+                            if (turn % 3 == 0 || alive <= 2 || hasBullets || smallFight) {
                                 val botsNode = mapper.createArrayNode()
                                 for (b in tick.botStates) {
                                     val o = botsNode.addObject()
@@ -191,17 +219,35 @@ class BattleService(
                                     o.put("x", b.x)
                                     o.put("y", b.y)
                                     o.put("direction", b.direction)
+                                    o.put("gunDirection", b.gunDirection)
+                                    o.put("radarDirection", b.radarDirection)
+                                    o.put("radarSweep", b.radarSweep)
                                     o.put("energy", b.energy)
                                     o.put("speed", b.speed)
+                                }
+                                val bulletsNode = mapper.createArrayNode()
+                                for (bu in tick.bulletStates) {
+                                    val o = bulletsNode.addObject()
+                                    o.put("id", bu.bulletId)
+                                    o.put("ownerId", bu.ownerId)
+                                    o.put("x", bu.x)
+                                    o.put("y", bu.y)
+                                    o.put("direction", bu.direction)
+                                    o.put("power", bu.power)
+                                    if (bu.color != null) o.put("color", bu.color)
                                 }
                                 session.emitSync("tick") {
                                     put("turn", turn)
                                     put("round", tick.roundNumber)
                                     set<ArrayNode>("bots", botsNode)
+                                    set<ArrayNode>("bullets", bulletsNode)
                                 }
                             }
                         } catch (_: Throwable) {
                         }
+                        // NOTE: do NOT Thread.sleep here for "TPS" — BattleRunner is single-threaded
+                        // and sleep blocks the battle queue (next deploys stick in BOOTING with no ticks).
+                        // Spectator pacing lives in the lobby client (tick playback queue).
                     }
 
                     handle.onRoundEnded.on(owner) { round ->

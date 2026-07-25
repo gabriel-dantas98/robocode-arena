@@ -55,6 +55,14 @@ describe("lab examples", () => {
     );
   });
 
+  test("each example has blurb + tactics", () => {
+    for (const ex of listExamples()) {
+      expect(ex.blurb.length).toBeGreaterThan(40);
+      expect(Array.isArray(ex.tactics)).toBe(true);
+      expect(ex.tactics!.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
   test("each example loads for ts/java/python", () => {
     for (const ex of listExamples()) {
       for (const lang of ["ts", "java", "python"] as const) {

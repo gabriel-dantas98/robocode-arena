@@ -149,6 +149,7 @@ export function ensureBootAssets(
   }
 
   if (lang === "python") {
+    // Docker image puts /opt/robocode-py/bin on PATH (venv with bot API).
     writeFileSync(
       shPath,
       `#!/bin/sh\nset -e\ncd -- "$(dirname -- "$0")"\nexec python3 "${botName}.py"\n`,

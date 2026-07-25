@@ -2,10 +2,11 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serveStatic } from "hono/bun";
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, readFileSync } from "fs";
 import { join, resolve } from "path";
 import { RoomStore } from "./rooms";
 import { extractAndValidateZipAsync } from "./zip";
+import AdmZip from "adm-zip";
 import {
   deployLab,
   loadTemplate,
@@ -14,6 +15,7 @@ import {
   sweepOldLabSessions,
   type LabDifficulty,
   type LabLang,
+  type LabPace,
 } from "./lab";
 import type { PublicRoom } from "../shared/types";
 
@@ -36,6 +38,48 @@ const rooms = new RoomStore(() => PUBLIC_URL);
 
 const app = new Hono();
 app.use("*", cors());
+
+app.get("/api/samples/:file", async (c) => {
+  const file = c.req.param("file");
+  const name = file.replace(/\.zip$/i, "");
+  if (!/^[A-Za-z][A-Za-z0-9_-]{0,31}$/.test(name)) {
+    return c.json({ error: "invalid sample name" }, 400);
+  }
+  // Prefer prebuilt fixture zip; else pack bots/fixture/<Name>/
+  const prebuilt = join(ROOT, "bots/fixture/zips", `${name}.zip`);
+  if (existsSync(prebuilt)) {
+    return new Response(Bun.file(prebuilt), {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${name}.zip"`,
+      },
+    });
+  }
+  const dir = join(ROOT, "bots/fixture", name);
+  const jsonPath = join(dir, `${name}.json`);
+  if (!existsSync(jsonPath)) {
+    return c.json({ error: "sample not found" }, 404);
+  }
+  const zip = new AdmZip();
+  for (const entry of ["json", "ts", "js", "java", "py", "cs", "sh", "cmd"]) {
+    const p = join(dir, `${name}.${entry}`);
+    if (existsSync(p)) {
+      zip.addFile(`${name}/${name}.${entry}`, readFileSync(p));
+    }
+  }
+  // package.json optional for node bots
+  const pkg = join(dir, "package.json");
+  if (existsSync(pkg)) zip.addFile(`${name}/package.json`, readFileSync(pkg));
+
+  const buf = zip.toBuffer();
+  return new Response(buf, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${name}.zip"`,
+      "Content-Length": String(buf.byteLength),
+    },
+  });
+});
 
 app.get("/api/health", async (c) => {
   let engineOk = false;
@@ -171,7 +215,14 @@ app.post("/api/rooms/:code/play", async (c) => {
     const res = await fetch(`${ENGINE_URL}/battles`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ botPaths, rounds: 3 }),
+      body: JSON.stringify({
+        botPaths,
+        rounds: 5,
+        turnTimeoutMicros: 50_000,
+        startDelayMs: 2000,
+        gunCoolingRate: 0.08,
+        maxInactivityTurns: 700,
+      }),
     });
     if (!res.ok) {
       const text = await res.text();
@@ -282,14 +333,19 @@ app.post("/api/lab/deploy", async (c) => {
       botName?: string;
       source?: string;
       difficulty?: LabDifficulty;
+      pace?: LabPace;
     }>();
     const lang = body.lang;
     const difficulty = body.difficulty;
+    const pace = body.pace || "cinema";
     if (!lang || !["ts", "java", "python"].includes(lang)) {
       return c.json({ error: "lang must be ts|java|python" }, 400);
     }
     if (!difficulty || !["easy", "medium", "hard"].includes(difficulty)) {
       return c.json({ error: "difficulty must be easy|medium|hard" }, 400);
+    }
+    if (!["cinema", "watch", "normal"].includes(pace)) {
+      return c.json({ error: "pace must be cinema|watch|normal" }, 400);
     }
     if (!body.botName || typeof body.source !== "string") {
       return c.json({ error: "botName and source required" }, 400);
@@ -303,6 +359,7 @@ app.post("/api/lab/deploy", async (c) => {
       botName: body.botName,
       source: body.source,
       difficulty,
+      pace: pace as LabPace,
       engineUrl: ENGINE_URL,
       labRoot: LAB_ROOT,
       clientIp: ip,
