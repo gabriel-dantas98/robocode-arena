@@ -218,6 +218,24 @@
   min-width: 6.5rem;
 }
 
+a.lab-viewer-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: end;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--panel-edge);
+  border-radius: 6px;
+  color: var(--cyan, #3de0ff);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 1px;
+}
+a.lab-viewer-link:hover {
+  border-color: var(--cyan, #3de0ff);
+  background: rgba(61, 224, 255, 0.08);
+}
+
 .lab-monaco {
   flex: 1;
   min-height: 280px;

@@ -80,6 +80,7 @@ Notas:
 
 - Precisa **≥2GB RAM** no serviço (ideal 4GB). Smoke usou `JAVA_OPTS=-Xmx512m`.
 - Lobby honra `PORT` (Railway) e faz **proxy WS** `/api/battles/:id/ws` → engine interno (browser não fala com `:7601`).
+- **Viewer nativo:** `/viewer/` (Tank Royale Viewer / Pixi) + proxy Observer `wss://…/tr` → server TR embutido (`TR_SERVER_PORT=7654`). Secret injetado no proxy (não vaza pro browser).
 - Uploads são efêmeros sem volume; adicione `railway volume` se quiser persistir.
 - Custo: plano Hobby/Pro conforme uso — não é free-tier confortável pra muitos bots.
 

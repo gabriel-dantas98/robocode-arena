@@ -113,16 +113,48 @@ class BattleService(
     }
     private val runnerLock = Any()
     @Volatile private var runner: BattleRunner? = null
+    private val trPort: Int =
+        System.getenv("TR_SERVER_PORT")?.toIntOrNull()?.takeIf { it in 1..65535 } ?: 7654
 
     private fun runner(): BattleRunner {
         synchronized(runnerLock) {
             if (runner == null) {
                 runner = BattleRunner.create {
-                    embeddedServer()
+                    embeddedServer(trPort)
                     botConnectTimeout(Duration.ofSeconds(180))
                 }
             }
             return runner!!
+        }
+    }
+
+    /** Start embedded TR server early so observers can connect before the first battle. */
+    fun ensureTrServer(): Map<String, Any?> {
+        val r = runner()
+        return trEndpoint(r)
+    }
+
+    /**
+     * BattleRunner keeps ServerManager as an internal API — reflect to surface
+     * port + controller secret for the lobby observer proxy.
+     */
+    private fun trEndpoint(r: BattleRunner): Map<String, Any?> {
+        return try {
+            val smMethod = r.javaClass.methods.first { it.name.startsWith("getServerManager") }
+            val sm = smMethod.invoke(r) ?: return mapOf("ok" to false, "error" to "no server manager")
+            sm.javaClass.getMethod("ensureStarted").invoke(sm)
+            val port = sm.javaClass.getMethod("getPort").invoke(sm) as Int
+            val url = sm.javaClass.getMethod("getServerUrl").invoke(sm) as String
+            val secret = sm.javaClass.getMethod("getControllerSecret").invoke(sm) as String
+            mapOf(
+                "ok" to true,
+                "port" to port,
+                "serverUrl" to url,
+                "observerSecret" to secret,
+                "configuredPort" to trPort,
+            )
+        } catch (t: Throwable) {
+            mapOf("ok" to false, "error" to (t.message ?: t::class.java.simpleName), "configuredPort" to trPort)
         }
     }
 
@@ -346,6 +378,15 @@ fun main() {
     val port = System.getenv("ENGINE_PORT")?.toIntOrNull() ?: 7601
     val service = BattleService()
 
+    // Warm TR server so /tr proxy + native viewer work before first battle.
+    try {
+        val tr = service.ensureTrServer()
+        println("TR embedded server: $tr")
+    } catch (t: Throwable) {
+        System.err.println("TR server warm-up failed: ${t.message}")
+        t.printStackTrace()
+    }
+
     Runtime.getRuntime().addShutdownHook(Thread {
         println("Shutting down battle service…")
         service.close()
@@ -367,7 +408,24 @@ fun main() {
 
         routing {
             get("/health") {
-                call.respond(mapOf("ok" to true, "service" to "robocode-arena-engine"))
+                val tr = try {
+                    service.ensureTrServer()
+                } catch (_: Throwable) {
+                    emptyMap()
+                }
+                call.respond(
+                    mapOf(
+                        "ok" to true,
+                        "service" to "robocode-arena-engine",
+                        "trPort" to tr["port"],
+                        "trOk" to (tr["ok"] == true),
+                    ),
+                )
+            }
+
+            // Lobby-only: includes observer/controller secret for WS proxy injection.
+            get("/tr") {
+                call.respond(service.ensureTrServer())
             }
 
             post("/battles") {

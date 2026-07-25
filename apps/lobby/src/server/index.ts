@@ -83,18 +83,67 @@ app.get("/api/samples/:file", async (c) => {
 
 app.get("/api/health", async (c) => {
   let engineOk = false;
+  let trOk = false;
+  let trPort: number | null = null;
   try {
     const r = await fetch(`${ENGINE_URL}/health`, {
       signal: AbortSignal.timeout(2500),
     });
     engineOk = r.ok;
+    if (r.ok) {
+      const j = (await r.json()) as { trOk?: boolean; trPort?: number };
+      trOk = !!j.trOk;
+      trPort = typeof j.trPort === "number" ? j.trPort : null;
+    }
   } catch {
     engineOk = false;
   }
   return c.json(
-    { ok: true, engine: ENGINE_URL, engineOk, publicUrl: PUBLIC_URL },
+    {
+      ok: true,
+      engine: ENGINE_URL,
+      engineOk,
+      trOk,
+      trPort,
+      publicUrl: PUBLIC_URL,
+      viewerPath: "/viewer/",
+    },
     engineOk ? 200 : 503,
   );
+});
+
+/** Public TR observer endpoint — secret stays server-side (injected by /tr proxy). */
+app.get("/api/tr", async (c) => {
+  let trOk = false;
+  let trPort: number | null = null;
+  try {
+    const r = await fetch(`${ENGINE_URL}/tr`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (r.ok) {
+      const j = (await r.json()) as { ok?: boolean; port?: number };
+      trOk = !!j.ok;
+      trPort = typeof j.port === "number" ? j.port : null;
+    }
+  } catch {
+    trOk = false;
+  }
+  const host = c.req.header("x-forwarded-host") || c.req.header("host") || "localhost";
+  const fwd = (c.req.header("x-forwarded-proto") || "").split(",")[0]?.trim();
+  const scheme =
+    fwd === "https" || (!fwd && PORT === 443)
+      ? "wss"
+      : c.req.url.startsWith("https")
+        ? "wss"
+        : "ws";
+  return c.json({
+    ok: trOk,
+    trPort,
+    wsUrl: `${scheme}://${host}/tr`,
+    path: "/tr",
+    secret: "", // lobby /tr proxy injects controller secret
+    viewerUrl: "/viewer/",
+  });
 });
 
 app.post("/api/public-url", async (c) => {
@@ -398,6 +447,7 @@ app.get("/api/scale/results", async (c) => {
 });
 
 const CLIENT = join(import.meta.dir, "../client");
+const VIEWER = join(import.meta.dir, "../../viewer");
 
 const MIME: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
@@ -408,12 +458,44 @@ const MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
   ".webp": "image/webp",
   ".json": "application/json",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".ttf": "font/ttf",
 };
 
 app.get("/client/*", async (c) => {
   const rel = c.req.path.replace(/^\/client\//, "");
   if (rel.includes("..")) return c.text("bad path", 400);
   const filePath = join(CLIENT, rel);
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) return c.text("not found", 404);
+  const ext = rel.includes(".")
+    ? `.${rel.split(".").pop()!.toLowerCase()}`
+    : "";
+  const type = MIME[ext] || file.type || "application/octet-stream";
+  return new Response(file, { headers: { "Content-Type": type } });
+});
+
+/** Official Tank Royale Viewer (Pixi) — built into apps/lobby/viewer. */
+app.get("/viewer", (c) => c.redirect("/viewer/", 302));
+app.get("/viewer/", async (c) => {
+  const index = join(VIEWER, "index.html");
+  if (!existsSync(index)) {
+    return c.html(
+      `<!doctype html><meta charset=utf-8><title>Viewer</title>
+       <p>Viewer ainda não buildado. Rode <code>bun scripts/build-viewer.ts</code>.</p>
+       <p><a href="/lab">← Lab</a></p>`,
+      503,
+    );
+  }
+  return new Response(Bun.file(index), {
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+});
+app.get("/viewer/*", async (c) => {
+  const rel = c.req.path.replace(/^\/viewer\//, "");
+  if (!rel || rel.includes("..")) return c.text("bad path", 400);
+  const filePath = join(VIEWER, rel);
   const file = Bun.file(filePath);
   if (!(await file.exists())) return c.text("not found", 404);
   const ext = rel.includes(".")
@@ -448,14 +530,59 @@ app.get("/", async (c) => {
 
 console.log(`Lobby listening on http://0.0.0.0:${PORT}`);
 console.log(`Engine URL: ${ENGINE_URL}`);
+console.log(`Viewer: ${existsSync(join(VIEWER, "index.html")) ? "/viewer/" : "(not built)"}`);
 
+type WsKind = "battle" | "tr";
 type WsData = {
+  kind: WsKind;
   battleId: string;
   upstream: WebSocket | null;
+  observerSecret: string;
 };
 
 function engineWsBase() {
   return ENGINE_URL.replace(/^http/, "ws").replace(/\/$/, "");
+}
+
+async function fetchTrUpstream(): Promise<{
+  wsUrl: string;
+  secret: string;
+} | null> {
+  try {
+    const r = await fetch(`${ENGINE_URL}/tr`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as {
+      ok?: boolean;
+      port?: number;
+      serverUrl?: string;
+      observerSecret?: string;
+    };
+    if (!j.ok || !j.port) return null;
+    const url =
+      typeof j.serverUrl === "string" && j.serverUrl.startsWith("ws")
+        ? j.serverUrl
+        : `ws://127.0.0.1:${j.port}`;
+    return { wsUrl: url, secret: j.observerSecret || "" };
+  } catch {
+    return null;
+  }
+}
+
+function injectObserverSecret(raw: string | Buffer, secret: string): string | Buffer {
+  if (!secret) return raw;
+  try {
+    const text = typeof raw === "string" ? raw : Buffer.from(raw).toString("utf8");
+    const msg = JSON.parse(text) as { type?: string; secret?: string };
+    if (msg?.type === "ObserverHandshake" && !msg.secret) {
+      msg.secret = secret;
+      return JSON.stringify(msg);
+    }
+  } catch {
+    /* pass through */
+  }
+  return raw;
 }
 
 export default {
@@ -464,17 +591,79 @@ export default {
   idleTimeout: 120,
   async fetch(req: Request, server: Bun.Server<WsData>) {
     const url = new URL(req.url);
+    if (url.pathname === "/tr") {
+      const ok = server.upgrade(req, {
+        data: {
+          kind: "tr",
+          battleId: "",
+          upstream: null,
+          observerSecret: "",
+        },
+      });
+      if (ok) return undefined as unknown as Response;
+      return new Response("Expected WebSocket Upgrade", { status: 426 });
+    }
     const m = url.pathname.match(/^\/api\/battles\/([^/]+)\/ws$/);
     if (m) {
       const battleId = m[1];
-      const ok = server.upgrade(req, { data: { battleId, upstream: null } });
+      const ok = server.upgrade(req, {
+        data: {
+          kind: "battle",
+          battleId,
+          upstream: null,
+          observerSecret: "",
+        },
+      });
       if (ok) return undefined as unknown as Response;
       return new Response("Expected WebSocket Upgrade", { status: 426 });
     }
     return app.fetch(req);
   },
   websocket: {
-    open(ws: Bun.ServerWebSocket<WsData>) {
+    async open(ws: Bun.ServerWebSocket<WsData>) {
+      if (ws.data.kind === "tr") {
+        const tr = await fetchTrUpstream();
+        if (!tr) {
+          try {
+            ws.close(1013, "TR server unavailable");
+          } catch {
+            /* */
+          }
+          return;
+        }
+        ws.data.observerSecret = tr.secret;
+        const upstream = new WebSocket(tr.wsUrl);
+        ws.data.upstream = upstream;
+        upstream.addEventListener("message", (ev) => {
+          try {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(
+                typeof ev.data === "string"
+                  ? ev.data
+                  : new Uint8Array(ev.data as ArrayBuffer),
+              );
+            }
+          } catch {
+            /* */
+          }
+        });
+        upstream.addEventListener("close", () => {
+          try {
+            ws.close();
+          } catch {
+            /* */
+          }
+        });
+        upstream.addEventListener("error", () => {
+          try {
+            ws.close(1011, "TR upstream error");
+          } catch {
+            /* */
+          }
+        });
+        return;
+      }
+
       const upstreamUrl = `${engineWsBase()}/battles/${ws.data.battleId}/ws`;
       const upstream = new WebSocket(upstreamUrl);
       ws.data.upstream = upstream;
@@ -510,8 +699,12 @@ export default {
     message(ws: Bun.ServerWebSocket<WsData>, message: string | Buffer) {
       const up = ws.data.upstream;
       if (!up || up.readyState !== WebSocket.OPEN) return;
-      if (typeof message === "string") up.send(message);
-      else up.send(message);
+      const payload =
+        ws.data.kind === "tr"
+          ? injectObserverSecret(message, ws.data.observerSecret)
+          : message;
+      if (typeof payload === "string") up.send(payload);
+      else up.send(payload);
     },
     close(ws: Bun.ServerWebSocket<WsData>) {
       try {

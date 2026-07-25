@@ -28,6 +28,7 @@
         <li><strong>Loop:</strong> o bot reage a eventos (scan, hit, wall) e manda intenções (mover, girar, atirar).</li>
         <li><strong>Radar / canhão / corpo</strong> giram separado — playstyles mostram padrões clássicos.</li>
         <li><strong>Ritmo:</strong> engine em tempo real + playback com interpolação (tipo TPS do GUI). Cone ciano = radar do seu bot; linha âmbar = mira do canhão.</li>
+        <li><strong>Viewer nativo:</strong> abre o <a href="/viewer/" target="_blank" rel="noopener">Tank Royale Viewer</a> (Pixi, estilo oficial) ligado ao server TR via <code>/tr</code>. Abra antes/durante o Testar pra ver scan arcs coloridos de verdade.</li>
         <li><strong>Lab</strong> testa aqui; <strong>Workshop</strong> usa zip com pasta <code>BotName/</code> + <code>BotName.json</code>.</li>
       </ol>
       <p class="muted">Referência oficial (Tank Royale):</p>
@@ -86,6 +87,7 @@
           <button type="button" class="ghost" id="btnDeleteDraft" disabled>Apagar</button>
           <span id="draftBadge" class="lab-draft-badge" title="Autosave no localStorage">salvo</span>
           <button type="button" id="btnDeploy" title="⌘/Ctrl+Enter">Testar <kbd class="lab-kbd">⌘↵</kbd></button>
+          <a class="ghost lab-viewer-link" id="btnNativeViewer" href="/viewer/" target="_blank" rel="noopener" title="Tank Royale Viewer (Pixi) via protocolo Observer">Viewer nativo ↗</a>
           <button type="button" class="ghost" id="btnShortcuts" title="Atalhos" aria-expanded="false">?</button>
         </div>
         <p id="labShortcuts" class="lab-shortcuts muted" hidden>

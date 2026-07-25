@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Robocode Tank Royale Viewer</title>
+    <script type="module" crossorigin src="/viewer/assets/index-7TxmoW9Y.js"></script>
+    <link rel="modulepreload" crossorigin href="/viewer/assets/chunk-Bh1tDfsg.js">
+    <link rel="modulepreload" crossorigin href="/viewer/assets/preload-helper-McP_Yzcl.js">
+    <link rel="stylesheet" crossorigin href="/viewer/assets/index-ehRFLdqN.css">
+  </head>
+  <body>
+    <div id="toast"></div>
+    <div id="status-bar">
+      <span id="status"></span>
+      <span id="round-info"></span>
+      <span id="turn-info"></span>
+    </div>
+    <button id="theme-btn" data-tooltip="Switch to light theme"><i class="fa-solid fa-sun"></i></button>
+    <button id="settings-btn" data-tooltip="Settings">&#9881;</button>
+    <div id="settings-panel">
+      <label>
+        Server URL
+        <input type="text" id="server-url" value="ws://localhost:7654" />
+      </label>
+      <label>
+        Secret (optional)
+        <input type="password" id="server-secret" value="" placeholder="Leave blank if not required" />
+      </label>
+      <label class="slider">
+        <span class="slider-label">Scan arc opacity</span>
+        <input type="range" id="scan-opacity" min="0" max="100" value="5" />
+        <span id="scan-opacity-value">5%</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="debug-log" />
+        Enable debug logging
+      </label>
+      <div class="settings-divider"></div>
+      <div class="settings-section">
+        <span class="settings-section-title">Arena Logo</span>
+        <div class="settings-button-row">
+          <button type="button" id="upload-logo-btn"><i class="fa-solid fa-folder-open"></i> Upload</button>
+          <button type="button" id="clear-logo-btn" class="danger"><i class="fa-solid fa-trash"></i> Remove</button>
+        </div>
+        <input type="file" id="upload-logo-file" accept="image/*" style="display: none" />
+        <label class="slider">
+          <span class="slider-label">Opacity</span>
+          <input type="range" id="logo-opacity" min="5" max="100" value="50" />
+          <span id="logo-opacity-value">50%</span>
+        </label>
+        <label class="slider">
+          <span class="slider-label">Size</span>
+          <input type="range" id="logo-size" min="10" max="100" value="50" />
+          <span id="logo-size-value">50%</span>
+        </label>
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-section">
+        <span class="settings-section-title">Skill Ratings</span>
+        <div class="settings-row-with-actions">
+          <label class="checkbox">
+            <input type="checkbox" id="show-ratings" checked />
+            Show skill ratings
+          </label>
+          <div class="settings-section-actions">
+            <button id="import-ratings-btn" type="button" class="icon-btn" data-tooltip="Import"><i class="fa-solid fa-file-import"></i></button>
+            <button id="export-ratings-btn" type="button" class="icon-btn" data-tooltip="Export"><i class="fa-solid fa-file-export"></i></button>
+            <button id="reset-ratings-btn" type="button" class="icon-btn danger" data-tooltip="Reset"><i class="fa-solid fa-trash"></i></button>
+          </div>
+          <input type="file" id="import-ratings-file" accept=".json" style="display: none" />
+        </div>
+        <label data-tooltip="OpenSkill is patent-free and stable. TrueSkill is Microsoft's algorithm; both use the same μ/σ/β/τ parameters and produce μ/σ ratings, but their dynamics differ. Resetting stored ratings is recommended after switching.">
+          Rating algorithm
+          <select id="rating-algorithm">
+            <option value="openskill">OpenSkill</option>
+            <option value="trueskill">TrueSkill</option>
+          </select>
+        </label>
+        <label data-tooltip="Minimum games before a bot gets a rank tier (below this shows as Unranked)">
+          Ranked games threshold
+          <input type="number" id="ranked-games-threshold" min="1" max="100" value="20" />
+        </label>
+        <label data-tooltip="Games until rating confidence is high (below this shows as Provisional). Only bots above this threshold are used to calculate rank percentile boundaries.">
+          Provisional games threshold
+          <input type="number" id="provisional-games-threshold" min="1" max="200" value="50" />
+        </label>
+        <div class="settings-param-row">
+          <label class="param-input" data-tooltip="Initial mean rating for new bots">
+            μ
+            <input type="number" id="rating-mu" min="0" max="5000" value="25" />
+          </label>
+          <label class="param-input" data-tooltip="Initial uncertainty (std dev). Higher values make early ratings change faster">
+            σ
+            <input type="number" id="rating-sigma" min="0" max="1000" step="0.001" value="8.333" />
+          </label>
+          <label class="param-input" data-tooltip="Performance variance - models luck/randomness in game outcomes. Lower values assume results are more skill-determined (less luck)">
+            β
+            <input type="number" id="rating-beta" min="0" max="1000" step="0.001" value="4.167" />
+          </label>
+          <label class="param-input" data-tooltip="Dynamics factor - adds uncertainty after each game. A small value allows ongoing correction for early misestimates while keeping ratings stable. Set to 0 for fastest convergence, higher values keep ratings volatile">
+            τ
+            <input type="number" id="rating-tau" min="0" max="100" step="0.001" value="0.083" />
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="bot-list-container">
+      <div id="waiting-message">Waiting for bots to connect...</div>
+      <h2 id="bot-list-header">Connected Bots</h2>
+      <table id="bot-list">
+        <thead>
+          <tr>
+            <th>Bot</th>
+            <th>Tier</th>
+            <th>Rating</th>
+            <th>Author</th>
+            <th>Description</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="results-backdrop"></div>
+    <div id="results-container">
+      <h2>Battle Results</h2>
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Bot</th>
+            <th>Tier</th>
+            <th>Rating</th>
+            <th>Total</th>
+            <th>Survival</th>
+            <th>(bonus)</th>
+            <th>Bullet Dmg</th>
+            <th>(bonus)</th>
+            <th>Ram Dmg</th>
+            <th>(bonus)</th>
+            <th>1sts</th>
+            <th>2nds</th>
+            <th>3rds</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="arena"></div>
+  </body>
+</html>

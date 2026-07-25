@@ -20,6 +20,15 @@ COPY bots/package.json ./bots/
 RUN cd /src/bots && bun install \
   && cd /src/apps/lobby && bun install
 
+# Official Tank Royale Viewer (Pixi) — served at /viewer/
+FROM node:22-bookworm AS viewer-build
+WORKDIR /viewer
+COPY vendor/tank-royale-viewer/package.json vendor/tank-royale-viewer/package-lock.json ./
+RUN npm ci
+COPY vendor/tank-royale-viewer/ ./
+ENV VITE_BASE_URL=/viewer/
+RUN npm run build
+
 FROM eclipse-temurin:21-jdk-jammy
 RUN apt-get update && apt-get install -y --no-install-recommends \
       curl ca-certificates python3 python3-pip python3-venv \
@@ -40,6 +49,7 @@ COPY --from=engine-build /src/apps/engine/build/install/robocode-arena-engine /a
 COPY --from=lobby-deps /src/apps/lobby/node_modules /app/apps/lobby/node_modules
 COPY --from=lobby-deps /src/bots/node_modules /app/bots/node_modules
 COPY apps/lobby /app/apps/lobby
+COPY --from=viewer-build /viewer/dist /app/apps/lobby/viewer
 COPY bots /app/bots
 COPY scripts /app/scripts
 COPY package.json /app/package.json
@@ -52,6 +62,7 @@ ENV PATH="/opt/robocode-py/bin:$JAVA_HOME/bin:/usr/local/bin:$PATH"
 ENV ENGINE_PORT=7601
 ENV LOBBY_PORT=7610
 ENV ENGINE_URL=http://127.0.0.1:7601
+ENV TR_SERVER_PORT=7654
 ENV LOBBY_MAX_PLAYERS=40
 ENV JAVA_OPTS="-Xmx768m -XX:+UseG1GC"
 

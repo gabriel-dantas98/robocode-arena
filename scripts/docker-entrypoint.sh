@@ -7,9 +7,10 @@ export LOBBY_PORT="${PORT:-${LOBBY_PORT:-7610}}"
 export PORT="${LOBBY_PORT}"
 export ENGINE_PORT="${ENGINE_PORT:-7601}"
 export ENGINE_URL="${ENGINE_URL:-http://127.0.0.1:${ENGINE_PORT}}"
+export TR_SERVER_PORT="${TR_SERVER_PORT:-7654}"
 
-echo "[arena] starting engine on :${ENGINE_PORT}"
-ENGINE_PORT="${ENGINE_PORT}" JAVA_OPTS="${JAVA_OPTS:--Xmx768m}" \
+echo "[arena] starting engine on :${ENGINE_PORT} (TR :${TR_SERVER_PORT})"
+ENGINE_PORT="${ENGINE_PORT}" TR_SERVER_PORT="${TR_SERVER_PORT}" JAVA_OPTS="${JAVA_OPTS:--Xmx768m}" \
   /app/engine/bin/robocode-arena-engine > /tmp/engine.log 2>&1 &
 ENGINE_PID=$!
 

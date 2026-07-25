@@ -352,6 +352,7 @@ function renderRoom() {
         <div class="hud" id="hud">
           <span class="pill live">AO VIVO</span>
           <span class="pill" id="hudText">aguardando ticks…</span>
+          <a class="pill ghost" id="btnNativeViewer" href="/viewer/" target="_blank" rel="noopener">Viewer nativo ↗</a>
         </div>
         <div class="scoreboard" id="scoreboard"></div>
       </div>
